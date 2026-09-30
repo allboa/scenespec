@@ -1,0 +1,42 @@
+{
+  "version": "0.2",
+  "view": { "type": "projected", "crs": "EPSG:3031" },
+  "data": {
+    "img": { "format": "cog", "url": "https://example.org/cog/rgba.tif" },
+    "v": { "format": "arrow-ipc-stream", "blob": "v" },
+    "i": { "format": "arrow-ipc-stream", "blob": "i" }
+  },
+  "layers": [
+    {
+      "id": "img",
+      "kind": "tiled_raster",
+      "source": "img",
+      "palette": { "name": "grey", "range": [0, 255] },
+      "plan": {
+        "crs": "EPSG:3031",
+        "coverage": "view",
+        "planned_for": { "extent": [-6400000, 6400000, -6400000, 6400000], "units_per_pixel": 50000 },
+        "mesh": { "vertices": "v", "indices": "i" },
+        "levels": [
+          {
+            "level": 2,
+            "grid": { "crs": "EPSG:3031", "extent": [-6400000, 6400000, -6400000, 6400000], "dim": [256, 256] },
+            "pixel_size": 50000,
+            "encoding": { "codec": "jpeg", "dtype": "uint8", "samples_per_pixel": 1, "band": 1 },
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "byte_offset": 1776,
+                "byte_length": 12716,
+                "size": [256, 256],
+                "footprint": [-6400000, 6400000, -6400000, 6400000],
+                "mesh": { "first_vertex": 0, "vertex_count": 4, "first_index": 0, "index_count": 6 }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

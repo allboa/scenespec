@@ -1,0 +1,1253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/allboa/scenespec/main/schema/scene-0.3.schema.json",
+  "title": "allonboard scene spec 0.3",
+  "description": "A renderer-neutral description of a map scene: a view in its own CRS, named data references, and layers that draw those data with styling given as data. 0.2 adds tiled rasters: a Cloud Optimized GeoTIFF (COG) referenced by URL, drawn from a tile plan made by the producer. 0.3 adds colour images: a tiled raster can draw three or four bands as red, green, blue and alpha instead of one band through a palette, and JPEG tiles are allowed. A renderer implements this spec; nothing here names or assumes a particular renderer.",
+  "type": "object",
+  "required": [
+    "version",
+    "view",
+    "data",
+    "layers"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional pointer to this schema. Ignored by renderers."
+    },
+    "version": {
+      "const": "0.3",
+      "description": "Scene spec version. Only 0.3 validates against this schema; 0.1 and 0.2 scenes validate against their own schemas."
+    },
+    "view": {
+      "$ref": "#/$defs/view"
+    },
+    "data": {
+      "type": "object",
+      "description": "Data references keyed by id. Layers refer to data by these ids.",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/dataRef"
+      }
+    },
+    "layers": {
+      "type": "array",
+      "description": "Layers in drawing order: the first layer is drawn first (at the bottom).",
+      "items": {
+        "$ref": "#/$defs/layer"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+      "maxLength": 128,
+      "description": "An identifier: a letter, then letters, digits, underscore, dot or hyphen."
+    },
+    "crs": {
+      "description": "A coordinate reference system: an authority:code string such as EPSG:3031, or a PROJJSON object.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*:[A-Za-z0-9_.-]+$",
+          "description": "authority:code, for example EPSG:3031 or OGC:CRS84."
+        },
+        {
+          "$ref": "#/$defs/projjson"
+        }
+      ]
+    },
+    "projjson": {
+      "type": "object",
+      "description": "A PROJJSON CRS object (https://proj.org/specifications/projjson.html). Only the top-level shape is checked here; full PROJJSON validation is out of scope for 0.1.",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "xy": {
+      "type": "array",
+      "description": "A position [x, y] in the units of the CRS it belongs to.",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "extent": {
+      "type": "array",
+      "description": "A bounding box [xmin, xmax, ymin, ymax] in the units of the CRS it belongs to. The validator also checks xmin < xmax and ymin < ymax.",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "view": {
+      "type": "object",
+      "description": "Where and how the scene is viewed. All positions are in view CRS units.",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "projected",
+            "cartesian",
+            "globe"
+          ],
+          "description": "projected: a flat map of view CRS coordinates; crs is required. It is usually a projected CRS, but a geographic CRS is allowed and is drawn flat as lon/lat (plate carree). cartesian: a flat Cartesian plane drawn as-is with no map semantics; crs is optional and informational. globe: a 3D sphere; crs is required and is the geographic CRS of positions given in the view."
+        },
+        "crs": {
+          "$ref": "#/$defs/crs"
+        },
+        "center": {
+          "$ref": "#/$defs/xy",
+          "description": "Initial center of the view in view CRS units ([lon, lat] for globe). Defaults to the center of extent when extent is given."
+        },
+        "extent": {
+          "$ref": "#/$defs/extent",
+          "description": "Initial region to fit in the view, in view CRS units. When absent, a renderer fits the extent of the data."
+        },
+        "local_origin": {
+          "$ref": "#/$defs/xy",
+          "description": "Float32 precision provision. A point in view CRS units near the data. Renderers draw coordinates relative to this point. Data references marked origin_subtracted store coordinates with this point already subtracted."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": [
+                  "projected",
+                  "globe"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "crs"
+            ],
+            "properties": {
+              "crs": true
+            }
+          }
+        }
+      ]
+    },
+    "dataRef": {
+      "type": "object",
+      "description": "A data reference: an Arrow IPC table (format arrow-ipc-stream or arrow-ipc-file) or a COG (format cog).",
+      "required": [
+        "format"
+      ],
+      "properties": {
+        "format": {
+          "enum": [
+            "arrow-ipc-stream",
+            "arrow-ipc-file",
+            "cog"
+          ],
+          "description": "Arrow IPC streaming format, Arrow IPC file format, or a Cloud Optimized GeoTIFF."
+        }
+      },
+      "if": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "const": "cog"
+          }
+        },
+        "required": [
+          "format"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/cogRef"
+      },
+      "else": {
+        "$ref": "#/$defs/arrowRef"
+      }
+    },
+    "arrowRef": {
+      "type": "object",
+      "description": "A reference to tabular data in Arrow IPC form, held either as a blob delivered by the transport or at a URL the renderer fetches.",
+      "required": [
+        "format"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "enum": [
+            "arrow-ipc-stream",
+            "arrow-ipc-file"
+          ],
+          "description": "Arrow IPC streaming format or Arrow IPC file format."
+        },
+        "blob": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Key of a blob delivered alongside the scene by the transport (embedded, served or handed over in-process)."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri-reference",
+          "minLength": 1,
+          "description": "Absolute or scene-relative URL the renderer fetches."
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "origin_subtracted": {
+          "type": "boolean",
+          "default": false,
+          "description": "True when coordinates in this data have view.local_origin subtracted. Requires view.local_origin (checked by the validator)."
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "blob"
+          ],
+          "not": {
+            "required": [
+              "url"
+            ],
+            "type": "object",
+            "properties": {
+              "blob": true,
+              "url": true
+            }
+          },
+          "type": "object",
+          "properties": {
+            "blob": true,
+            "url": true
+          }
+        },
+        {
+          "required": [
+            "url"
+          ],
+          "not": {
+            "required": [
+              "blob"
+            ],
+            "type": "object",
+            "properties": {
+              "blob": true,
+              "url": true
+            }
+          },
+          "type": "object",
+          "properties": {
+            "blob": true,
+            "url": true
+          }
+        }
+      ]
+    },
+    "cogRef": {
+      "type": "object",
+      "description": "A Cloud Optimized GeoTIFF the renderer reads by HTTP range requests. Only the tile bytes named in a tile plan are fetched; the renderer does not need to parse the TIFF header, because the plan carries every byte range and encoding it needs.",
+      "required": [
+        "format",
+        "url"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "const": "cog"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri-reference",
+          "minLength": 1,
+          "description": "Absolute or scene-relative URL of the COG. The server must answer HTTP range requests."
+        }
+      }
+    },
+    "geometry": {
+      "type": "object",
+      "description": "The geometry column of a vector table. Only native GeoArrow encodings are allowed; WKB and WKT are converted before data leave the producer.",
+      "required": [
+        "column",
+        "encoding"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "column": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the geometry column."
+        },
+        "encoding": {
+          "enum": [
+            "geoarrow.point",
+            "geoarrow.linestring",
+            "geoarrow.polygon",
+            "geoarrow.multipoint",
+            "geoarrow.multilinestring",
+            "geoarrow.multipolygon"
+          ],
+          "description": "GeoArrow native extension type of the column."
+        },
+        "crs": {
+          "$ref": "#/$defs/crs",
+          "description": "CRS of the coordinates. When absent, coordinates are in the view CRS. In 0.1 and 0.2 vector coordinates must be in the view CRS, so when present it must equal view.crs exactly (the validator compares the JSON values); it leaves room for renderer-side reprojection later."
+        }
+      }
+    },
+    "rgba": {
+      "type": "array",
+      "description": "A constant color as [r, g, b, a], each an integer 0 to 255.",
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 255
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "color": {
+      "description": "A color as data: a constant RGBA, or the name of a per-row RGBA column (FixedSizeList<uint8, 4>) in the layer's data.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/rgba"
+        },
+        {
+          "type": "object",
+          "required": [
+            "column"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "column": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "palette": {
+      "type": "object",
+      "description": "Maps raster values to colors. range[0] maps to the start of the named palette and range[1] to its end; values outside are clamped.",
+      "required": [
+        "name",
+        "range"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Palette name. 0.1 does not fix a registry of names; see README open questions."
+        },
+        "range": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "rgb": {
+      "type": "object",
+      "description": "Draw samples as a colour image: bands gives the bands for red, green and blue, alpha the band for opacity (0 transparent). A pixel is also transparent when all three colour bands equal grid.nodata (compared raw, before scaling). uint8 samples map 0 to 0 and 255 to full intensity. Other sample types need range: scaled values (raw * scale + offset) from range[0] to range[1] map linearly to 0 to full intensity, clamped, for colour and alpha bands alike.",
+      "required": [
+        "bands"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bands": {
+          "type": "array",
+          "description": "1-based bands for red, green and blue. Each must be <= samples_per_pixel of every level (checked by the validator). A band may repeat, for example [1, 1, 1] draws one band as grey.",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "alpha": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional 1-based band for opacity, not one of bands. Absent means opaque except for nodata."
+        },
+        "range": {
+          "type": "array",
+          "description": "Scaled values mapped to zero and full intensity. Required unless every level's dtype is uint8 (checked by the validator); with uint8 it stretches the image.",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "description": "Grid descriptor for a raster: the regular grid the values lie on. Cell values are row-major, row 0 at ymax, column 0 at xmin.",
+      "required": [
+        "crs",
+        "extent",
+        "dim"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "crs": {
+          "$ref": "#/$defs/crs"
+        },
+        "extent": {
+          "$ref": "#/$defs/extent",
+          "description": "Outer edges of the grid, [xmin, xmax, ymin, ymax], in grid CRS units."
+        },
+        "dim": {
+          "type": "array",
+          "description": "[ncol, nrow].",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "nodata": {
+          "description": "Optional value meaning no data: a number, or the string \"NaN\" to say NaN cells mean no data (JSON has no NaN literal). Arrow nulls always mean no data. null is the same as absent.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "const": "NaN"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "mesh": {
+      "type": "object",
+      "description": "A pre-projected triangle mesh for a raster. Vertex positions are in view CRS units; uv addresses the grid, u from 0 at xmin to 1 at xmax, v from 0 at row 0 (ymax) to 1 at the last row (ymin).",
+      "required": [
+        "vertices",
+        "indices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "vertices": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of the vertex table."
+        },
+        "indices": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of the index table, three indices per triangle."
+        },
+        "position_column": {
+          "type": "string",
+          "default": "position",
+          "description": "FixedSizeList<float, 2 or 3> of view CRS positions."
+        },
+        "uv_column": {
+          "type": "string",
+          "default": "uv",
+          "description": "FixedSizeList<float, 2> of grid texture coordinates."
+        },
+        "index_column": {
+          "type": "string",
+          "default": "index",
+          "description": "Unsigned integer vertex indices."
+        }
+      }
+    },
+    "tileEncoding": {
+      "type": "object",
+      "description": "How the bytes of every tile in a level are stored and turn into values. In a TIFF these are properties of the image (level), so they are given once per level. A value is raw * scale + offset; grid.nodata is compared with the raw value, before scaling.",
+      "required": [
+        "codec",
+        "dtype"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "codec": {
+          "enum": [
+            "none",
+            "deflate",
+            "lzw",
+            "zstd",
+            "lerc",
+            "lerc_deflate",
+            "lerc_zstd",
+            "webp",
+            "packbits",
+            "jpeg"
+          ],
+          "description": "Compression of each tile's bytes. deflate is a zlib stream (TIFF compression 8). jpeg is baseline JPEG (TIFF compression 7): dtype uint8, planar interleaved, predictor none, and samples_per_pixel 1 (greyscale) or 3 (YCbCr, TIFF photometric 6; the decoder converts to red, green, blue). Its shared tables are given in jpeg_tables."
+        },
+        "predictor": {
+          "enum": [
+            "none",
+            "horizontal",
+            "floating_point"
+          ],
+          "default": "none",
+          "description": "TIFF predictor, undone after decompression: none (1), horizontal differencing (2) or floating point (3)."
+        },
+        "dtype": {
+          "enum": [
+            "uint8",
+            "int8",
+            "uint16",
+            "int16",
+            "uint32",
+            "int32",
+            "float32",
+            "float64"
+          ],
+          "description": "Type of one sample."
+        },
+        "byte_order": {
+          "enum": [
+            "little",
+            "big"
+          ],
+          "default": "little",
+          "description": "Byte order of multi-byte samples."
+        },
+        "samples_per_pixel": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Number of bands in the image."
+        },
+        "planar": {
+          "enum": [
+            "interleaved",
+            "separate"
+          ],
+          "default": "interleaved",
+          "description": "interleaved: a tile holds every band, pixel by pixel. separate: a tile holds one band, and the tile records point at the tiles of the band named by band."
+        },
+        "band": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "The band to draw through a palette, 1-based. The validator checks band <= samples_per_pixel. Not used by a layer with rgb, which names its bands itself; the validator rejects band there."
+        },
+        "scale": {
+          "type": "number",
+          "default": 1,
+          "description": "Value scale for integer COGs: value = raw * scale + offset."
+        },
+        "offset": {
+          "type": "number",
+          "default": 0,
+          "description": "Value offset for integer COGs: value = raw * scale + offset."
+        },
+        "jpeg_tables": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "minLength": 4,
+          "description": "codec jpeg only: the TIFF JPEGTables bytes (an abbreviated JPEG stream holding quantization tables, Huffman tables or both, from SOI to EOI), base64 encoded. A renderer decodes a tile standalone by joining the tables without their final EOI marker to the tile bytes without their leading SOI marker. Absent means each tile is a complete JPEG stream."
+        }
+      }
+    },
+    "tileWindow": {
+      "type": "object",
+      "description": "The valid pixels of an edge tile, in pixels from the tile's top-left corner. Pixels outside the window are padding and are not drawn. When absent, the whole tile is valid.",
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "tileMeshRange": {
+      "type": "object",
+      "description": "This tile's mesh: a contiguous run of rows in the plan's vertex table and in its index table. Indices count from first_vertex, so the first vertex of the tile is index 0. Positions are in view CRS units. uv is in tile space: (0, 0) is the top-left corner of the tile's first pixel and (1, 1) the bottom-right corner of pixel (width - 1, height - 1) of the full tile size, so an edge tile's mesh stops at u = window width / tile width.",
+      "required": [
+        "first_vertex",
+        "vertex_count",
+        "first_index",
+        "index_count"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "first_vertex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vertex_count": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "first_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "index_count": {
+          "type": "integer",
+          "minimum": 3,
+          "multipleOf": 3,
+          "description": "Three indices per triangle."
+        }
+      }
+    },
+    "tile": {
+      "type": "object",
+      "description": "One tile of a level: where its bytes are in the COG, which of its pixels are valid, where it lands in the view, and its mesh.",
+      "required": [
+        "col",
+        "row",
+        "byte_offset",
+        "byte_length",
+        "size",
+        "footprint",
+        "mesh"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "col": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tile column in the level, 0 at the grid's xmin."
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tile row in the level, 0 at the grid's ymax."
+        },
+        "byte_offset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Offset of the tile's bytes from the start of the COG."
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Length of the tile's bytes. Tiles that hold no bytes in the COG (sparse, all no data) are left out of the plan."
+        },
+        "size": {
+          "type": "array",
+          "description": "[width, height] of the tile in pixels, padding included.",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "window": {
+          "$ref": "#/$defs/tileWindow"
+        },
+        "footprint": {
+          "$ref": "#/$defs/extent",
+          "description": "Bounding box of the tile's projected mesh, [xmin, xmax, ymin, ymax] in view CRS units. Renderers use it to skip tiles outside the viewport."
+        },
+        "mesh": {
+          "$ref": "#/$defs/tileMeshRange"
+        }
+      }
+    },
+    "tileLevel": {
+      "type": "object",
+      "description": "One level of the COG pyramid: level 0 is full resolution, level k the k-th overview.",
+      "required": [
+        "level",
+        "grid",
+        "pixel_size",
+        "encoding",
+        "tiles"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0 for the full-resolution image, k for the k-th overview. Unique within a plan."
+        },
+        "grid": {
+          "$ref": "#/$defs/grid",
+          "description": "This level's grid in the source CRS: extent, dim and nodata. Tile (col, row) covers pixels col * width to (col + 1) * width - 1 and row * height to (row + 1) * height - 1 of this grid."
+        },
+        "pixel_size": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Size of one source pixel of this level in view CRS units, as the producer measured it for level selection."
+        },
+        "encoding": {
+          "$ref": "#/$defs/tileEncoding"
+        },
+        "tiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tile"
+          },
+          "description": "The tiles of this level that the plan includes."
+        }
+      }
+    },
+    "planMesh": {
+      "type": "object",
+      "description": "The Arrow tables that hold every tile's mesh. Each tile names its rows with a tileMeshRange. Meshes travel as Arrow data, not as JSON arrays.",
+      "required": [
+        "vertices",
+        "indices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "vertices": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of the vertex table (an Arrow table, no geometry column)."
+        },
+        "indices": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of the index table (an Arrow table, no geometry column)."
+        },
+        "position_column": {
+          "type": "string",
+          "default": "position",
+          "description": "FixedSizeList<float32, 2 or 3> of view CRS positions."
+        },
+        "uv_column": {
+          "type": "string",
+          "default": "uv",
+          "description": "FixedSizeList<float32, 2> of tile-space texture coordinates."
+        },
+        "index_column": {
+          "type": "string",
+          "default": "index",
+          "description": "uint32 vertex indices, counted from each tile's first_vertex."
+        }
+      }
+    },
+    "levelSelection": {
+      "type": "object",
+      "description": "How a renderer picks one level from a plan that ships every level. The screen pixel size is the size of one device pixel in view CRS units at the current zoom. After choosing a level, the renderer draws that level's tiles whose footprint meets the viewport.",
+      "required": [
+        "rule"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "rule": {
+          "enum": [
+            "nearest_pixel_size",
+            "coarsest_sufficient"
+          ],
+          "description": "nearest_pixel_size: the level whose pixel_size is closest to the screen pixel size (ties go to the finer level). coarsest_sufficient: the coarsest level whose pixel_size is no larger than the screen pixel size, or the finest level when none is."
+        }
+      }
+    },
+    "tilePlan": {
+      "type": "object",
+      "description": "Which tiles of the COG to draw and how. The producer reads the COG's structure, chooses tiles and projects their meshes; the renderer fetches byte ranges, decodes and draws. It either covers one view (coverage view) or ships every level up front with a selection rule (coverage all_levels).",
+      "required": [
+        "crs",
+        "coverage",
+        "mesh",
+        "levels"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "crs": {
+          "$ref": "#/$defs/crs",
+          "description": "CRS of mesh positions and footprints. Must equal view.crs exactly (the validator compares the JSON values)."
+        },
+        "coverage": {
+          "enum": [
+            "view",
+            "all_levels"
+          ],
+          "description": "view: the plan was made for one view (planned_for) and has exactly one level; the renderer draws every tile in it. all_levels: the plan holds every level and the renderer chooses one with selection."
+        },
+        "planned_for": {
+          "type": "object",
+          "description": "The view the plan was made for. Required when coverage is view.",
+          "required": [
+            "extent",
+            "units_per_pixel"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "extent": {
+              "$ref": "#/$defs/extent",
+              "description": "Visible region in view CRS units."
+            },
+            "units_per_pixel": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Size of one device pixel in view CRS units."
+            }
+          }
+        },
+        "selection": {
+          "$ref": "#/$defs/levelSelection"
+        },
+        "mesh": {
+          "$ref": "#/$defs/planMesh"
+        },
+        "levels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/tileLevel"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "coverage": {
+                "const": "view"
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "planned_for"
+            ],
+            "properties": {
+              "planned_for": true,
+              "levels": {
+                "type": "array",
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "coverage": {
+                "const": "all_levels"
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "selection"
+            ],
+            "properties": {
+              "selection": true
+            }
+          }
+        }
+      ]
+    },
+    "layerCommon": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": true,
+        "label": {
+          "type": "string",
+          "description": "Human-readable name for layer lists and legends."
+        },
+        "visible": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "layerVector": {
+      "type": "object",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of a vector table with a geometry column."
+        }
+      }
+    },
+    "layerPolygon": {
+      "type": "object",
+      "description": "Filled areas from polygon or multipolygon geometry.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        },
+        {
+          "$ref": "#/$defs/layerVector"
+        }
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "data": true,
+        "kind": {
+          "const": "polygon"
+        },
+        "fill": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke_width_px": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "layerPath": {
+      "type": "object",
+      "description": "Lines from linestring or multilinestring geometry.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        },
+        {
+          "$ref": "#/$defs/layerVector"
+        }
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "data": true,
+        "kind": {
+          "const": "path"
+        },
+        "stroke": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke_width_px": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "layerPoint": {
+      "type": "object",
+      "description": "Marks at point or multipoint geometry.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        },
+        {
+          "$ref": "#/$defs/layerVector"
+        }
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "data": true,
+        "kind": {
+          "const": "point"
+        },
+        "fill": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke_width_px": {
+          "type": "number",
+          "minimum": 0
+        },
+        "radius_px": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "layerRaster": {
+      "type": "object",
+      "description": "A raster: values on a grid, colored by a palette, optionally drawn on a pre-projected mesh. Without a mesh, the renderer places the grid in the view CRS itself.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        }
+      ],
+      "required": [
+        "grid",
+        "values",
+        "palette"
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "kind": {
+          "const": "raster"
+        },
+        "grid": {
+          "$ref": "#/$defs/grid"
+        },
+        "values": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of an Arrow table with one numeric column of ncol * nrow cell values."
+        },
+        "values_column": {
+          "type": "string",
+          "default": "value"
+        },
+        "palette": {
+          "$ref": "#/$defs/palette"
+        },
+        "mesh": {
+          "$ref": "#/$defs/mesh"
+        }
+      },
+      "additionalProperties": false
+    },
+    "layerTiledRaster": {
+      "type": "object",
+      "description": "A tiled raster: a COG drawn from a tile plan, either colored by a palette (one band; the palette range is in scaled values, raw * scale + offset) or drawn as a colour image with rgb. Exactly one of palette and rgb is given.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        }
+      ],
+      "required": [
+        "source",
+        "plan"
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "kind": {
+          "const": "tiled_raster"
+        },
+        "source": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of a cog data reference."
+        },
+        "plan": {
+          "$ref": "#/$defs/tilePlan"
+        },
+        "palette": {
+          "$ref": "#/$defs/palette"
+        },
+        "rgb": {
+          "$ref": "#/$defs/rgb"
+        }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "palette"
+          ],
+          "not": {
+            "required": [
+              "rgb"
+            ],
+            "type": "object",
+            "properties": {
+              "palette": true,
+              "rgb": true
+            }
+          },
+          "type": "object",
+          "properties": {
+            "palette": true,
+            "rgb": true
+          }
+        },
+        {
+          "required": [
+            "rgb"
+          ],
+          "not": {
+            "required": [
+              "palette"
+            ],
+            "type": "object",
+            "properties": {
+              "palette": true,
+              "rgb": true
+            }
+          },
+          "type": "object",
+          "properties": {
+            "palette": true,
+            "rgb": true
+          }
+        }
+      ]
+    },
+    "layer": {
+      "type": "object",
+      "description": "A layer. kind selects which of the layer definitions applies.",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "polygon",
+            "path",
+            "point",
+            "raster",
+            "tiled_raster"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "polygon"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerPolygon"
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "path"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerPath"
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "point"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerPoint"
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "raster"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerRaster"
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "tiled_raster"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerTiledRaster"
+          }
+        }
+      ]
+    }
+  }
+}

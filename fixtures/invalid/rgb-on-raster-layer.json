@@ -1,0 +1,16 @@
+{
+  "version": "0.3",
+  "view": { "type": "projected", "crs": "EPSG:3031" },
+  "data": {
+    "vals": { "format": "arrow-ipc-stream", "blob": "vals" }
+  },
+  "layers": [
+    {
+      "id": "r",
+      "kind": "raster",
+      "grid": { "crs": "EPSG:3031", "extent": [-6400000, 6400000, -6400000, 6400000], "dim": [2, 2] },
+      "values": "vals",
+      "rgb": { "bands": [1, 2, 3] }
+    }
+  ]
+}

@@ -1,0 +1,263 @@
+{
+  "version": "0.3",
+  "view": { "type": "projected", "crs": "EPSG:3031", "center": [0, 0], "extent": [-6400000, 6400000, -6400000, 6400000] },
+  "data": {
+    "chart_cog": { "format": "cog", "url": "polar_3031_rgb.tif" },
+    "chart_tile_vertices": { "format": "arrow-ipc-stream", "blob": "chart_tile_vertices" },
+    "chart_tile_indices": { "format": "arrow-ipc-stream", "blob": "chart_tile_indices" }
+  },
+  "layers": [
+    {
+      "id": "chart",
+      "kind": "tiled_raster",
+      "label": "Synthetic colour wheel, 3-band YCbCr JPEG COG in EPSG:3031",
+      "source": "chart_cog",
+      "rgb": { "bands": [1, 2, 3] },
+      "plan": {
+        "crs": "EPSG:3031",
+        "coverage": "all_levels",
+        "selection": { "rule": "coarsest_sufficient" },
+        "mesh": {
+          "vertices": "chart_tile_vertices",
+          "indices": "chart_tile_indices",
+          "position_column": "position",
+          "uv_column": "uv",
+          "index_column": "index"
+        },
+        "levels": [
+          {
+            "level": 2,
+            "grid": { "crs": "EPSG:3031", "extent": [-6400000, 6400000, -6400000, 6400000], "dim": [256, 256] },
+            "pixel_size": 50000,
+            "encoding": {
+              "codec": "jpeg",
+              "dtype": "uint8",
+              "samples_per_pixel": 3,
+              "planar": "interleaved",
+              "jpeg_tables": "/9j/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/2Q=="
+            },
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "byte_offset": 1776,
+                "byte_length": 12716,
+                "size": [256, 256],
+                "footprint": [-6400000, 6400000, -6400000, 6400000],
+                "mesh": { "first_vertex": 0, "vertex_count": 4, "first_index": 0, "index_count": 6 }
+              }
+            ]
+          },
+          {
+            "level": 1,
+            "grid": { "crs": "EPSG:3031", "extent": [-6400000, 6400000, -6400000, 6400000], "dim": [512, 512] },
+            "pixel_size": 25000,
+            "encoding": {
+              "codec": "jpeg",
+              "dtype": "uint8",
+              "samples_per_pixel": 3,
+              "planar": "interleaved",
+              "jpeg_tables": "/9j/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/2Q=="
+            },
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "byte_offset": 14500,
+                "byte_length": 9609,
+                "size": [256, 256],
+                "footprint": [-6400000, 0, 0, 6400000],
+                "mesh": { "first_vertex": 4, "vertex_count": 4, "first_index": 6, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 0,
+                "byte_offset": 24117,
+                "byte_length": 9460,
+                "size": [256, 256],
+                "footprint": [0, 6400000, 0, 6400000],
+                "mesh": { "first_vertex": 8, "vertex_count": 4, "first_index": 12, "index_count": 6 }
+              },
+              {
+                "col": 0,
+                "row": 1,
+                "byte_offset": 33585,
+                "byte_length": 10832,
+                "size": [256, 256],
+                "footprint": [-6400000, 0, -6400000, 0],
+                "mesh": { "first_vertex": 12, "vertex_count": 4, "first_index": 18, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 1,
+                "byte_offset": 44425,
+                "byte_length": 10556,
+                "size": [256, 256],
+                "footprint": [0, 6400000, -6400000, 0],
+                "mesh": { "first_vertex": 16, "vertex_count": 4, "first_index": 24, "index_count": 6 }
+              }
+            ]
+          },
+          {
+            "level": 0,
+            "grid": { "crs": "EPSG:3031", "extent": [-6400000, 6400000, -6400000, 6400000], "dim": [1024, 1024] },
+            "pixel_size": 12500,
+            "encoding": {
+              "codec": "jpeg",
+              "dtype": "uint8",
+              "samples_per_pixel": 3,
+              "planar": "interleaved",
+              "jpeg_tables": "/9j/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/2Q=="
+            },
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "byte_offset": 54989,
+                "byte_length": 8582,
+                "size": [256, 256],
+                "footprint": [-6400000, -3200000, 3200000, 6400000],
+                "mesh": { "first_vertex": 20, "vertex_count": 4, "first_index": 30, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 0,
+                "byte_offset": 63579,
+                "byte_length": 7224,
+                "size": [256, 256],
+                "footprint": [-3200000, 0, 3200000, 6400000],
+                "mesh": { "first_vertex": 24, "vertex_count": 4, "first_index": 36, "index_count": 6 }
+              },
+              {
+                "col": 2,
+                "row": 0,
+                "byte_offset": 70811,
+                "byte_length": 6590,
+                "size": [256, 256],
+                "footprint": [0, 3200000, 3200000, 6400000],
+                "mesh": { "first_vertex": 28, "vertex_count": 4, "first_index": 42, "index_count": 6 }
+              },
+              {
+                "col": 3,
+                "row": 0,
+                "byte_offset": 77409,
+                "byte_length": 8426,
+                "size": [256, 256],
+                "footprint": [3200000, 6400000, 3200000, 6400000],
+                "mesh": { "first_vertex": 32, "vertex_count": 4, "first_index": 48, "index_count": 6 }
+              },
+              {
+                "col": 0,
+                "row": 1,
+                "byte_offset": 85843,
+                "byte_length": 6967,
+                "size": [256, 256],
+                "footprint": [-6400000, -3200000, 0, 3200000],
+                "mesh": { "first_vertex": 36, "vertex_count": 4, "first_index": 54, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 1,
+                "byte_offset": 92818,
+                "byte_length": 6368,
+                "size": [256, 256],
+                "footprint": [-3200000, 0, 0, 3200000],
+                "mesh": { "first_vertex": 40, "vertex_count": 4, "first_index": 60, "index_count": 6 }
+              },
+              {
+                "col": 2,
+                "row": 1,
+                "byte_offset": 99194,
+                "byte_length": 6255,
+                "size": [256, 256],
+                "footprint": [0, 3200000, 0, 3200000],
+                "mesh": { "first_vertex": 44, "vertex_count": 4, "first_index": 66, "index_count": 6 }
+              },
+              {
+                "col": 3,
+                "row": 1,
+                "byte_offset": 105457,
+                "byte_length": 7558,
+                "size": [256, 256],
+                "footprint": [3200000, 6400000, 0, 3200000],
+                "mesh": { "first_vertex": 48, "vertex_count": 4, "first_index": 72, "index_count": 6 }
+              },
+              {
+                "col": 0,
+                "row": 2,
+                "byte_offset": 113023,
+                "byte_length": 7728,
+                "size": [256, 256],
+                "footprint": [-6400000, -3200000, -3200000, 0],
+                "mesh": { "first_vertex": 52, "vertex_count": 4, "first_index": 78, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 2,
+                "byte_offset": 120759,
+                "byte_length": 7655,
+                "size": [256, 256],
+                "footprint": [-3200000, 0, -3200000, 0],
+                "mesh": { "first_vertex": 56, "vertex_count": 4, "first_index": 84, "index_count": 6 }
+              },
+              {
+                "col": 2,
+                "row": 2,
+                "byte_offset": 128422,
+                "byte_length": 7313,
+                "size": [256, 256],
+                "footprint": [0, 3200000, -3200000, 0],
+                "mesh": { "first_vertex": 60, "vertex_count": 4, "first_index": 90, "index_count": 6 }
+              },
+              {
+                "col": 3,
+                "row": 2,
+                "byte_offset": 135743,
+                "byte_length": 7391,
+                "size": [256, 256],
+                "footprint": [3200000, 6400000, -3200000, 0],
+                "mesh": { "first_vertex": 64, "vertex_count": 4, "first_index": 96, "index_count": 6 }
+              },
+              {
+                "col": 0,
+                "row": 3,
+                "byte_offset": 143142,
+                "byte_length": 9079,
+                "size": [256, 256],
+                "footprint": [-6400000, -3200000, -6400000, -3200000],
+                "mesh": { "first_vertex": 68, "vertex_count": 4, "first_index": 102, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 3,
+                "byte_offset": 152229,
+                "byte_length": 7810,
+                "size": [256, 256],
+                "footprint": [-3200000, 0, -6400000, -3200000],
+                "mesh": { "first_vertex": 72, "vertex_count": 4, "first_index": 108, "index_count": 6 }
+              },
+              {
+                "col": 2,
+                "row": 3,
+                "byte_offset": 160047,
+                "byte_length": 7724,
+                "size": [256, 256],
+                "footprint": [0, 3200000, -6400000, -3200000],
+                "mesh": { "first_vertex": 76, "vertex_count": 4, "first_index": 114, "index_count": 6 }
+              },
+              {
+                "col": 3,
+                "row": 3,
+                "byte_offset": 167779,
+                "byte_length": 8772,
+                "size": [256, 256],
+                "footprint": [3200000, 6400000, -6400000, -3200000],
+                "mesh": { "first_vertex": 80, "vertex_count": 4, "first_index": 120, "index_count": 6 }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
