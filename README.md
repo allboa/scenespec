@@ -315,14 +315,16 @@ The renderer draws it; it does not work a legend out from the layer.
   array order, while their layer is shown; placement and styling of the key
   are the renderer's choice and are not in the spec. A layer may have more
   than one legend.
-- **ramp**: a continuous key from `range[0]` to `range[1]` (`range[0]` must
-  be less than `range[1]`; checked). Colours are given as exactly one of
+- **ramp**: a continuous key from `range[0]` to `range[1]` as written (the
+  ends must differ; checked). A reversed range, `range[0]` greater than
+  `range[1]`, is a reversed key, as for a reversed layer palette. Colours are given as exactly one of
   `stops` (at least two `{ "at", "color" }`, `at` a position from 0 at
   `range[0]` to 1 at `range[1]`, strictly increasing, first 0 and last 1,
   all checked; colours are interpolated linearly in RGBA between stops) or
-  `palette`, a palette name as in a layer `palette`. When the legend's
-  layer has a `palette`, a palette ramp must name the same palette and the
-  same range (checked). Stops are positions, not values, so a ramp can key
+  `palette`, a palette name as in a layer `palette`. A palette ramp is only
+  for a layer that has a `palette`, and must name the same palette and the
+  same range (both checked); vector layers and `rgb` rasters are keyed with
+  `stops` or `classes`. Stops are positions, not values, so a ramp can key
   a colour column computed by any function the producer used; the ends are
   labelled with the range.
 - **classes**: discrete entries, each a `label` and a constant RGBA
@@ -383,8 +385,9 @@ and are interleaved, that `rgb` layers give no `encoding.band`, that
 non-`uint8` samples come with `rgb.range`, and that `jpeg` levels are
 `uint8`, interleaved, unpredicted and have 1 or 3 samples (`jpeg_tables`
 is only for `jpeg`). For 0.5 it also checks that each legend names an
-existing layer, that ramp ranges run low to high, that stops start at 0,
-end at 1 and increase, that a palette ramp matches its layer's palette,
+existing layer, that ramp ranges have differing ends, that stops start at 0,
+end at 1 and increase, that a palette ramp keys a layer with a palette
+and matches it,
 that popups do not name the geometry column, and that palette and rgb
 ranges do not have equal ends. It does not read Arrow data, so it cannot
 check that popup columns exist.

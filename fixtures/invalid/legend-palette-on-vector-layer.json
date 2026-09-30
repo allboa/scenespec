@@ -161,8 +161,8 @@
       "title": "Depth (m)",
       "ramp": {
         "range": [
-          4000,
-          0
+          0,
+          4000
         ],
         "stops": [
           {
@@ -201,6 +201,16 @@
           150,
           150,
           255
+        ]
+      }
+    },
+    {
+      "layer": "zones",
+      "ramp": {
+        "palette": "ocean",
+        "range": [
+          0,
+          1
         ]
       }
     }

@@ -1283,7 +1283,8 @@
         },
         "title": {
           "type": "string",
-          "description": "Heading shown with the legend, for example the variable and its units. When absent, a renderer may use the layer's label."
+          "description": "Heading shown with the legend, for example the variable and its units. When absent, a renderer may use the layer's label.",
+          "minLength": 1
         },
         "ramp": {
           "$ref": "#/$defs/legendRamp"
@@ -1346,7 +1347,7 @@
     },
     "legendRamp": {
       "type": "object",
-      "description": "A continuous ramp from range[0] to range[1], with colours given either as stops or as a named palette (exactly one). range[0] must be less than range[1] (checked by the validator).",
+      "description": "A continuous ramp from range[0] to range[1] as written, with colours given either as stops or as a named palette (exactly one). The ends must differ (checked by the validator); a reversed range (range[0] greater than range[1]) is a reversed key, as for a reversed layer palette.",
       "required": [
         "range"
       ],
@@ -1377,7 +1378,7 @@
         "palette": {
           "type": "string",
           "minLength": 1,
-          "description": "Palette name, as in a layer palette. When the legend's layer has a palette, name and range must equal it (checked by the validator)."
+          "description": "Palette name, as in a layer palette. Only for a layer that has a palette, and name and range must equal the layer's (both checked by the validator); other layers are keyed with stops or classes."
         }
       },
       "oneOf": [

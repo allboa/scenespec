@@ -1,0 +1,60 @@
+{
+  "version": "0.5",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "extent": [
+      -3000000,
+      3000000,
+      -3000000,
+      3000000
+    ]
+  },
+  "data": {
+    "depth_values": {
+      "format": "arrow-ipc-stream",
+      "blob": "depth_values"
+    }
+  },
+  "layers": [
+    {
+      "id": "depth",
+      "kind": "raster",
+      "label": "Depth",
+      "grid": {
+        "crs": "EPSG:3031",
+        "extent": [
+          -3000000,
+          3000000,
+          -3000000,
+          3000000
+        ],
+        "dim": [
+          60,
+          60
+        ]
+      },
+      "values": "depth_values",
+      "palette": {
+        "name": "blues",
+        "range": [
+          6000,
+          0
+        ]
+      }
+    }
+  ],
+  "legends": [
+    {
+      "layer": "depth",
+      "title": "Depth (m), deeper is darker",
+      "ramp": {
+        "palette": "blues",
+        "range": [
+          6000,
+          0
+        ]
+      }
+    }
+  ]
+}

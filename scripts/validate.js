@@ -144,8 +144,8 @@ function rangeErrors(scene, errors) {
   });
 }
 
-// 0.5: each legend keys an existing layer; ramps run low to high, stops run
-// 0 to 1 in order, and a palette ramp agrees with its layer's palette.
+// 0.5: each legend keys an existing layer; ramp ends differ, stops run 0 to
+// 1 in order, and a palette ramp keys a palette layer and agrees with it.
 function legendErrors(scene, errors) {
   const layers = new Map((scene.layers || []).map((l) => [l.id, l]));
   (scene.legends || []).forEach((lg, i) => {
@@ -154,8 +154,9 @@ function legendErrors(scene, errors) {
     if (!layer) errors.push(`${where}: layer id "${lg.layer}" is not a layer in this scene`);
     const ramp = lg.ramp;
     if (!ramp) return;
-    if (!(ramp.range[0] < ramp.range[1])) {
-      errors.push(`${where}/ramp/range: range[0] must be less than range[1]`);
+    // A reversed range is a reversed key, as a reversed layer palette is.
+    if (ramp.range[0] === ramp.range[1]) {
+      errors.push(`${where}/ramp/range: ends must differ`);
     }
     if (ramp.stops) {
       const at = ramp.stops.map((st) => st.at);
@@ -169,9 +170,12 @@ function legendErrors(scene, errors) {
         }
       }
     }
-    if (ramp.palette && layer && layer.palette &&
-        !(ramp.palette === layer.palette.name && sameJson(ramp.range, layer.palette.range))) {
-      errors.push(`${where}/ramp: palette and range must equal those of layer "${lg.layer}"`);
+    if (ramp.palette && layer) {
+      if (!layer.palette) {
+        errors.push(`${where}/ramp: layer "${lg.layer}" has no palette; key it with stops or classes`);
+      } else if (!(ramp.palette === layer.palette.name && sameJson(ramp.range, layer.palette.range))) {
+        errors.push(`${where}/ramp: palette and range must equal those of layer "${lg.layer}"`);
+      }
     }
   });
 }
