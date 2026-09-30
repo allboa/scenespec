@@ -1,0 +1,11 @@
+{
+  "version": "0.4",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "center": [5000000, 0],
+    "bounds": [-1000000, 1000000, -1000000, 1000000]
+  },
+  "data": { },
+  "layers": []
+}

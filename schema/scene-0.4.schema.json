@@ -126,7 +126,7 @@
         },
         "bounds": {
           "$ref": "#/$defs/extent",
-          "description": "Region the camera is kept within, in view CRS units: panning stops at it and zooming out stops when it fills the canvas (a renderer may show a margin around it so its edge can be seen). When absent the camera is not limited. It limits the camera only; data outside it is still drawn when the camera shows that part of the view. Not for globe views."
+          "description": "Region the camera is kept within, in view CRS units: the camera never shows more than bounds plus a margin of the renderer's choosing (so the edge can be seen), so panning stops at their edge and zooming out stops when they, with the margin, fit the canvas. When absent the camera is not limited. It limits the camera only; data outside it is still drawn when the camera shows that part of the view. Not for globe views."
         },
         "local_origin": {
           "$ref": "#/$defs/xy",

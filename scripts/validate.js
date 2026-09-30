@@ -77,6 +77,15 @@ function semanticErrors(scene) {
   if (scene.view && scene.view.bounds) {
     checkExtent("/view/bounds", scene.view.bounds, errors);
     if (scene.view.type === "globe") errors.push("/view/bounds: a globe view has no bounds");
+    const bb = scene.view.bounds;
+    const c = scene.view.center;
+    if (Array.isArray(c) && !(c[0] >= bb[0] && c[0] <= bb[1] && c[1] >= bb[2] && c[1] <= bb[3])) {
+      errors.push("/view/center: center must lie within view.bounds");
+    }
+    const e = scene.view.extent;
+    if (Array.isArray(e) && e.length === 4 && !(e[0] < bb[1] && e[1] > bb[0] && e[2] < bb[3] && e[3] > bb[2])) {
+      errors.push("/view/extent: extent must overlap view.bounds");
+    }
   }
   const seen = new Set();
   (scene.layers || []).forEach((layer, i) => {
