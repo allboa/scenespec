@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Validate scene spec documents against schema/scene-0.1.schema.json plus
-// the cross-reference checks JSON Schema cannot express.
+// Validate scene spec documents against the schema for their version
+// (schema/scene-<version>.schema.json) plus the cross-reference checks JSON
+// Schema cannot express.
 //
 //   node scripts/validate.js              run the fixture suite
 //   node scripts/validate.js a.json ...   validate the given scenes
@@ -12,11 +13,15 @@ const Ajv2020 = require("ajv/dist/2020");
 const addFormats = require("ajv-formats");
 
 const ROOT = path.resolve(__dirname, "..");
-const SCHEMA = path.join(ROOT, "schema", "scene-0.1.schema.json");
+const VERSIONS = ["0.1", "0.2"];
 
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
-const schemaValidate = ajv.compile(JSON.parse(fs.readFileSync(SCHEMA, "utf8")));
+const schemaValidate = {};
+for (const v of VERSIONS) {
+  const file = path.join(ROOT, "schema", `scene-${v}.schema.json`);
+  schemaValidate[v] = ajv.compile(JSON.parse(fs.readFileSync(file, "utf8")));
+}
 
 // Which geometry encodings each vector layer kind accepts.
 const KIND_ENCODINGS = {
@@ -25,6 +30,8 @@ const KIND_ENCODINGS = {
   point: ["geoarrow.point", "geoarrow.multipoint"],
 };
 
+const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
 function checkExtent(where, e, errors) {
   if (Array.isArray(e) && e.length === 4 && !(e[0] < e[1] && e[2] < e[3])) {
     errors.push(`${where}: extent must be [xmin, xmax, ymin, ymax] with xmin < xmax and ymin < ymax`);
@@ -32,7 +39,8 @@ function checkExtent(where, e, errors) {
 }
 
 // Checks that need the whole document: ids resolve, ids are unique,
-// geometry matches layer kind, extents are ordered, origin and CRS rules.
+// geometry matches layer kind, extents are ordered, origin and CRS rules,
+// and (0.2) tile plans are consistent with their levels and sources.
 function semanticErrors(scene) {
   const errors = [];
   const data = scene.data || {};
@@ -41,24 +49,27 @@ function semanticErrors(scene) {
     if (ref.origin_subtracted === true && !view.local_origin) {
       errors.push(`/data/${id}: origin_subtracted is true but view.local_origin is absent`);
     }
-    // 0.1: vector coordinates are in the view CRS. Compared as JSON values,
+    // Vector coordinates are in the view CRS. Compared as JSON values,
     // so "EPSG:3031" and an equivalent PROJJSON object do not match.
     if (ref.geometry && ref.geometry.crs !== undefined && view.crs !== undefined &&
-        JSON.stringify(ref.geometry.crs) !== JSON.stringify(view.crs)) {
-      errors.push(`/data/${id}: geometry.crs must equal view.crs in 0.1`);
+        !sameJson(ref.geometry.crs, view.crs)) {
+      errors.push(`/data/${id}: geometry.crs must equal view.crs in ${scene.version}`);
     }
   }
-  // Raster values and mesh tables are plain tables, not vector data.
-  const needTable = (where, id) => {
-    const ref = needData(where, id);
-    if (ref && ref.geometry) errors.push(`${where}: data "${id}" has a geometry column; expected a plain table`);
-  };
   const needData = (where, id) => {
     if (!Object.prototype.hasOwnProperty.call(data, id)) {
       errors.push(`${where}: data id "${id}" is not defined in data`);
       return null;
     }
     return data[id];
+  };
+  // Raster values and mesh tables are plain Arrow tables, not vector data
+  // and not COGs.
+  const needTable = (where, id) => {
+    const ref = needData(where, id);
+    if (!ref) return;
+    if (ref.format === "cog") errors.push(`${where}: data "${id}" is a cog; expected an Arrow table`);
+    else if (ref.geometry) errors.push(`${where}: data "${id}" has a geometry column; expected a plain table`);
   };
   checkExtent("/view", scene.view && scene.view.extent, errors);
   const seen = new Set();
@@ -82,14 +93,83 @@ function semanticErrors(scene) {
         needTable(`${where}/mesh`, layer.mesh.vertices);
         needTable(`${where}/mesh`, layer.mesh.indices);
       }
+    } else if (layer.kind === "tiled_raster") {
+      tiledRasterErrors(where, layer, view, needData, needTable, errors);
     }
   });
   return errors;
 }
 
+function tiledRasterErrors(where, layer, view, needData, needTable, errors) {
+  const src = needData(`${where}/source`, layer.source);
+  if (src && src.format !== "cog") {
+    errors.push(`${where}/source: data "${layer.source}" is ${src.format}; expected a cog`);
+  }
+  const plan = layer.plan;
+  if (view.crs === undefined) {
+    errors.push(`${where}/plan: a tiled raster needs view.crs`);
+  } else if (!sameJson(plan.crs, view.crs)) {
+    errors.push(`${where}/plan: crs must equal view.crs`);
+  }
+  needTable(`${where}/plan/mesh`, plan.mesh.vertices);
+  needTable(`${where}/plan/mesh`, plan.mesh.indices);
+  if (plan.planned_for) checkExtent(`${where}/plan/planned_for`, plan.planned_for.extent, errors);
+  const levels = new Set();
+  const vertexRuns = [];
+  const indexRuns = [];
+  plan.levels.forEach((lv, j) => {
+    const lw = `${where}/plan/levels/${j}`;
+    if (levels.has(lv.level)) errors.push(`${lw}: duplicate level ${lv.level}`);
+    levels.add(lv.level);
+    checkExtent(`${lw}/grid`, lv.grid.extent, errors);
+    const enc = lv.encoding;
+    if ((enc.band || 1) > (enc.samples_per_pixel || 1)) {
+      errors.push(`${lw}/encoding: band ${enc.band} is more than samples_per_pixel ${enc.samples_per_pixel || 1}`);
+    }
+    const [ncol, nrow] = lv.grid.dim;
+    const tiles = new Set();
+    lv.tiles.forEach((t, k) => {
+      const tw = `${lw}/tiles/${k}`;
+      const key = `${t.col}/${t.row}`;
+      if (tiles.has(key)) errors.push(`${tw}: duplicate tile ${key}`);
+      tiles.add(key);
+      const [w, h] = t.size;
+      const win = t.window || { x: 0, y: 0, width: w, height: h };
+      if (win.x + win.width > w || win.y + win.height > h) {
+        errors.push(`${tw}: window is outside the ${w} x ${h} tile`);
+      }
+      // The valid pixels must lie on the level's grid; an edge tile needs a
+      // window that stops at the grid edge.
+      if (t.col * w + win.x + win.width > ncol || t.row * h + win.y + win.height > nrow) {
+        errors.push(`${tw}: valid pixels run past the ${ncol} x ${nrow} grid; an edge tile needs a window`);
+      }
+      checkExtent(`${tw}/footprint`, t.footprint, errors);
+      vertexRuns.push({ where: tw, start: t.mesh.first_vertex, count: t.mesh.vertex_count });
+      indexRuns.push({ where: tw, start: t.mesh.first_index, count: t.mesh.index_count });
+    });
+  });
+  // Each tile owns its rows: runs in the shared mesh tables must not overlap.
+  const checkRuns = (runs, what) => {
+    runs.sort((a, b) => a.start - b.start);
+    for (let k = 1; k < runs.length; k++) {
+      const prev = runs[k - 1];
+      if (runs[k].start < prev.start + prev.count) {
+        errors.push(`${runs[k].where}/mesh: ${what} rows overlap those of ${prev.where}`);
+      }
+    }
+  };
+  checkRuns(vertexRuns, "vertex");
+  checkRuns(indexRuns, "index");
+}
+
 function validateScene(scene) {
-  if (!schemaValidate(scene)) {
-    return schemaValidate.errors.map(
+  const version = scene && scene.version;
+  const validate = schemaValidate[version];
+  if (!validate) {
+    return [`/version must be one of ${VERSIONS.join(", ")} (got ${JSON.stringify(version)})`];
+  }
+  if (!validate(scene)) {
+    return validate.errors.map(
       (e) => `${e.instancePath || "/"} ${e.message}${e.params && e.params.additionalProperty ? ` (${e.params.additionalProperty})` : ""}`
     );
   }

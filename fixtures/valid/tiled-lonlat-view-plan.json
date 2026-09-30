@@ -1,0 +1,53 @@
+{
+  "version": "0.2",
+  "view": { "type": "projected", "crs": "EPSG:3031", "center": [0, 0] },
+  "data": {
+    "sst": { "format": "cog", "url": "https://example.org/cog/polar_4326.tif" },
+    "sst_v": { "format": "arrow-ipc-stream", "blob": "sst_v" },
+    "sst_i": { "format": "arrow-ipc-stream", "blob": "sst_i" }
+  },
+  "layers": [
+    {
+      "id": "sst",
+      "kind": "tiled_raster",
+      "source": "sst",
+      "palette": { "name": "ocean", "range": [-2, 13] },
+      "plan": {
+        "crs": "EPSG:3031",
+        "coverage": "view",
+        "planned_for": { "extent": [-6400000, 6400000, -6400000, 6400000], "units_per_pixel": 100000 },
+        "mesh": { "vertices": "sst_v", "indices": "sst_i" },
+        "levels": [
+          {
+            "level": 3,
+            "grid": { "crs": "EPSG:4326", "extent": [-180, 180, -90, -40], "dim": [450, 62] },
+            "pixel_size": 89774,
+            "encoding": { "codec": "deflate", "predictor": "none", "dtype": "float32", "byte_order": "little", "band": 1 },
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "byte_offset": 11963,
+                "byte_length": 36259,
+                "size": [256, 256],
+                "window": { "x": 0, "y": 0, "width": 256, "height": 62 },
+                "footprint": [-5791661.4, 2429426.1, -5791903.9, 5791124.7],
+                "mesh": { "first_vertex": 0, "vertex_count": 2704, "first_index": 0, "index_count": 15450 }
+              },
+              {
+                "col": 1,
+                "row": 0,
+                "byte_offset": 48230,
+                "byte_length": 36381,
+                "size": [256, 256],
+                "window": { "x": 0, "y": 0, "width": 194, "height": 62 },
+                "footprint": [0, 5791716, -5791903.9, 5257759.9],
+                "mesh": { "first_vertex": 2704, "vertex_count": 2054, "first_index": 15450, "index_count": 11700 }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

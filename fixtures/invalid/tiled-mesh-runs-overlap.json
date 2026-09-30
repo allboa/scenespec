@@ -1,0 +1,57 @@
+{
+  "version": "0.2",
+  "view": { "type": "projected", "crs": "EPSG:3031" },
+  "data": {
+    "cog": { "format": "cog", "url": "polar_3031.tif" },
+    "v": { "format": "arrow-ipc-stream", "blob": "v" },
+    "i": { "format": "arrow-ipc-stream", "blob": "i" }
+  },
+  "layers": [
+    {
+      "id": "t",
+      "kind": "tiled_raster",
+      "source": "cog",
+      "palette": { "name": "ocean", "range": [-2, 13] },
+      "plan": {
+        "crs": "EPSG:3031",
+        "coverage": "all_levels",
+        "selection": { "rule": "nearest_pixel_size" },
+        "mesh": { "vertices": "v", "indices": "i" },
+        "levels": [
+          {
+            "level": 3,
+            "grid": {
+              "crs": "EPSG:3031",
+              "extent": [-6400000, 6400000, -6400000, 6400000],
+              "dim": [320, 320],
+              "nodata": -9999
+            },
+            "pixel_size": 40000,
+            "encoding": { "codec": "deflate", "predictor": "none", "dtype": "float32", "byte_order": "little", "band": 1 },
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "byte_offset": 64549,
+                "byte_length": 185605,
+                "size": [256, 256],
+                "footprint": [-6400000, 3840000, -3840000, 6400000],
+                "mesh": { "first_vertex": 0, "vertex_count": 4, "first_index": 0, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 0,
+                "byte_offset": 250162,
+                "byte_length": 26646,
+                "size": [256, 256],
+                "window": { "x": 0, "y": 0, "width": 64, "height": 256 },
+                "footprint": [3840000, 6400000, -3840000, 6400000],
+                "mesh": { "first_vertex": 2, "vertex_count": 4, "first_index": 6, "index_count": 6 }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
