@@ -245,8 +245,8 @@ units that the camera is kept within: the camera never shows more than
 `bounds` plus a margin, so panning stops at their edge and zooming out stops
 when they, with the margin, fit the canvas. The margin is the renderer's
 choice (it lets the edge be seen; aobcore's renderer uses a quarter of the
-bounds' size on each side). `extent` is still the initial view. Every 0.3 construct is
-unchanged, so a 0.3 scene becomes a 0.4 scene by changing `version`.
+bounds' size on each side). `extent` is still the initial view. Every 0.3
+construct is unchanged, so a 0.3 scene becomes a 0.4 scene by changing `version`.
 Without `bounds` the camera is not limited, as before.
 
 ```json
@@ -264,7 +264,10 @@ has no bounds; the validator rejects them there (a scene spec choice, not
 part of decision 0005). The validator also rejects an initial `center`
 outside `bounds`, or an `extent` that does not overlap them, since the
 camera could never show that view. `conformance/polar-probe-bounds.json` is
-the polar probe as a 0.4 scene with bounds from decision 0005 (`k = 2`).
+the polar probe as a 0.4 scene with bounds from decision 0005 (`k = 2`)
+as aobcore's `crs_domain()` computes them, measuring stretch against the
+centre's own scale (EPSG:3031 is 0.97 there), so 12.58e6 m rather than the
+decision table's 12.8e6 m, which measured against a sphere.
 
 ## Validate
 
