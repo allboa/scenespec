@@ -23,6 +23,9 @@ const DENYLIST = [
   "radiusUnits", "lineWidthMinPixels", "coordinateSystem",
   "coordinateOrigin", "modelMatrix", "updateTriggers", "pickable",
   "extruded", "wireframe", "binary",
+  // interaction and page (0.5 popups)
+  "autoHighlight", "highlightColor", "getTooltip", "tooltip", "onClick",
+  "onHover", "mouseover", "mousemove", "addEventListener", "innerHTML",
   // views and camera
   "OrthographicView", "MapView", "GlobeView", "FirstPersonView",
   "OrbitView", "viewState", "initialViewState",
