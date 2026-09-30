@@ -1,0 +1,14 @@
+{
+  "version": "0.1",
+  "view": { "type": "orthographic", "extent": [0, 100, 0, 50] },
+  "data": {
+    "tracks": {
+      "format": "arrow-ipc-stream",
+      "blob": "tracks",
+      "geometry": { "column": "geometry", "encoding": "geoarrow.multilinestring" }
+    }
+  },
+  "layers": [
+    { "id": "tracks", "kind": "path", "data": "tracks", "stroke": [200, 30, 30, 255] }
+  ]
+}

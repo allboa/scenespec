@@ -1,0 +1,70 @@
+{
+  "version": "0.1",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "center": [0, 0],
+    "extent": [-5791903.876384494, 5791903.876384494, -5791903.876384494, 5791903.876384494]
+  },
+  "data": {
+    "land": {
+      "format": "arrow-ipc-stream",
+      "blob": "land",
+      "geometry": { "column": "geometry", "encoding": "geoarrow.polygon" }
+    },
+    "coast": {
+      "format": "arrow-ipc-stream",
+      "blob": "coast",
+      "geometry": { "column": "geometry", "encoding": "geoarrow.linestring" }
+    },
+    "graticule": {
+      "format": "arrow-ipc-stream",
+      "blob": "graticule",
+      "geometry": { "column": "geometry", "encoding": "geoarrow.linestring" }
+    },
+    "sst_mesh": { "format": "arrow-ipc-stream", "blob": "sst_mesh" },
+    "sst_index": { "format": "arrow-ipc-stream", "blob": "sst_index" },
+    "sst_values": { "format": "arrow-ipc-stream", "blob": "sst_values" }
+  },
+  "layers": [
+    {
+      "id": "sst",
+      "kind": "raster",
+      "label": "Synthetic SST-like field",
+      "grid": { "crs": "EPSG:4326", "extent": [-180, 180, -90, -40], "dim": [360, 50] },
+      "values": "sst_values",
+      "values_column": "value",
+      "palette": { "name": "ocean", "range": [-2, 13] },
+      "mesh": {
+        "vertices": "sst_mesh",
+        "indices": "sst_index",
+        "position_column": "position",
+        "uv_column": "uv",
+        "index_column": "index"
+      }
+    },
+    {
+      "id": "land",
+      "kind": "polygon",
+      "label": "Land (50m)",
+      "data": "land",
+      "fill": [218, 213, 202, 255]
+    },
+    {
+      "id": "graticule",
+      "kind": "path",
+      "label": "Graticule",
+      "data": "graticule",
+      "stroke": { "column": "color" },
+      "stroke_width_px": 1
+    },
+    {
+      "id": "coast",
+      "kind": "path",
+      "label": "Coastline (50m)",
+      "data": "coast",
+      "stroke": [60, 66, 72, 255],
+      "stroke_width_px": 1
+    }
+  ]
+}

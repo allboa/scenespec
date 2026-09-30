@@ -1,0 +1,12 @@
+{
+  "version": "0.1",
+  "view": { "type": "projected", "crs": "EPSG:3031" },
+  "data": {
+    "coast": {
+      "format": "arrow-ipc-stream",
+      "blob": "coast",
+      "geometry": { "column": "geometry", "encoding": "geoarrow.wkb" }
+    }
+  },
+  "layers": [{ "id": "coast", "kind": "path", "data": "coast" }]
+}

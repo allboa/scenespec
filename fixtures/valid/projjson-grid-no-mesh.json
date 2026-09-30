@@ -1,0 +1,30 @@
+{
+  "version": "0.1",
+  "view": {
+    "type": "projected",
+    "crs": {
+      "type": "ProjectedCRS",
+      "name": "WGS 84 / Antarctic Polar Stereographic",
+      "id": { "authority": "EPSG", "code": 3031 }
+    },
+    "center": [0, 0]
+  },
+  "data": {
+    "ice": { "format": "arrow-ipc-stream", "blob": "ice" }
+  },
+  "layers": [
+    {
+      "id": "ice",
+      "kind": "raster",
+      "grid": {
+        "crs": "EPSG:3031",
+        "extent": [-3950000, 3950000, -3950000, 4350000],
+        "dim": [316, 332],
+        "nodata": -9999
+      },
+      "values": "ice",
+      "palette": { "name": "ice", "range": [0, 100] },
+      "visible": false
+    }
+  ]
+}
