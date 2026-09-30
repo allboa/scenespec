@@ -16,7 +16,7 @@
       "plan": {
         "crs": "EPSG:3031",
         "coverage": "all_levels",
-        "selection": { "rule": "coarsest_not_coarser" },
+        "selection": { "rule": "coarsest_sufficient" },
         "mesh": {
           "vertices": "sst_tile_vertices",
           "indices": "sst_tile_indices",

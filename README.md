@@ -93,7 +93,7 @@ bytes, decodes and draws.
       "plan": {
         "crs": "EPSG:3031",
         "coverage": "all_levels",
-        "selection": { "rule": "coarsest_not_coarser" },
+        "selection": { "rule": "coarsest_sufficient" },
         "mesh": { "vertices": "sst_v", "indices": "sst_i" },
         "levels": [
           { "level": 4,
@@ -125,13 +125,18 @@ bytes, decodes and draws.
   `selection` rule). `mesh` names one Arrow vertex table and one Arrow index
   table shared by all tiles, with the same column conventions as a 0.1 mesh
   (`position`, `uv`, `index`). Meshes travel as Arrow data, never as JSON
-  arrays, and the validator checks both are plain Arrow tables.
+  arrays, and the validator checks both are plain Arrow tables. Tiles'
+  row runs must not overlap (checked). A producer may write the tables as
+  one record batch per tile, so a renderer can consume the streams
+  incrementally and draw tiles as they arrive; row numbers count across
+  batches, so the runs stay valid.
 - **level**: `level` (0 is full resolution, k the k-th overview), `grid`
   (this level's extent, dim and nodata in the source CRS, as a 0.1 grid
   descriptor), `pixel_size` (one source pixel in view CRS units, as the
   producer measured it), `encoding` and `tiles`.
 - **encoding** (per level, because a TIFF stores it per image): `codec`
-  (`deflate` is a zlib stream), `predictor` (`none`, `horizontal`,
+  (`deflate` is a zlib stream; JPEG is left out because JPEG COGs keep
+  shared tables in the TIFF header, which the renderer does not read), `predictor` (`none`, `horizontal`,
   `floating_point`), `dtype`, `byte_order`, `samples_per_pixel`, `planar`,
   `band` (1-based), and `scale` and `offset`: value = raw * scale + offset.
   `grid.nodata` is compared with the raw value; the palette range is in
@@ -147,7 +152,7 @@ bytes, decodes and draws.
   bytes are left out.
 - **selection rules** for `all_levels`, with the screen pixel size being one
   device pixel in view CRS units: `nearest_pixel_size` picks the level whose
-  `pixel_size` is closest (ties to the finer level); `coarsest_not_coarser`
+  `pixel_size` is closest (ties to the finer level); `coarsest_sufficient`
   picks the coarsest level whose `pixel_size` is no larger, or the finest
   level when none is (the spike planner's rule). The renderer then draws that
   level's tiles whose `footprint` meets the viewport.
@@ -188,8 +193,8 @@ are unique, geometry encoding matches layer kind, extents are ordered,
 `view.crs`, raster value and mesh tables are plain Arrow tables). For 0.2
 tiled rasters it also checks that `source` is a `cog`, `plan.crs` equals
 `view.crs`, level numbers and tile positions are unique, `band` is within
-`samples_per_pixel`, windows fit their tile, and each tile's valid pixels lie
-on its level's grid (so an edge tile needs a `window`).
+`samples_per_pixel`, tile mesh row runs do not overlap, windows fit their
+tile, and each tile's valid pixels lie on its level's grid (so an edge tile needs a `window`).
 
 ## Open questions
 

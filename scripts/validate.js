@@ -115,6 +115,8 @@ function tiledRasterErrors(where, layer, view, needData, needTable, errors) {
   needTable(`${where}/plan/mesh`, plan.mesh.indices);
   if (plan.planned_for) checkExtent(`${where}/plan/planned_for`, plan.planned_for.extent, errors);
   const levels = new Set();
+  const vertexRuns = [];
+  const indexRuns = [];
   plan.levels.forEach((lv, j) => {
     const lw = `${where}/plan/levels/${j}`;
     if (levels.has(lv.level)) errors.push(`${lw}: duplicate level ${lv.level}`);
@@ -142,8 +144,22 @@ function tiledRasterErrors(where, layer, view, needData, needTable, errors) {
         errors.push(`${tw}: valid pixels run past the ${ncol} x ${nrow} grid; an edge tile needs a window`);
       }
       checkExtent(`${tw}/footprint`, t.footprint, errors);
+      vertexRuns.push({ where: tw, start: t.mesh.first_vertex, count: t.mesh.vertex_count });
+      indexRuns.push({ where: tw, start: t.mesh.first_index, count: t.mesh.index_count });
     });
   });
+  // Each tile owns its rows: runs in the shared mesh tables must not overlap.
+  const checkRuns = (runs, what) => {
+    runs.sort((a, b) => a.start - b.start);
+    for (let k = 1; k < runs.length; k++) {
+      const prev = runs[k - 1];
+      if (runs[k].start < prev.start + prev.count) {
+        errors.push(`${runs[k].where}/mesh: ${what} rows overlap those of ${prev.where}`);
+      }
+    }
+  };
+  checkRuns(vertexRuns, "vertex");
+  checkRuns(indexRuns, "index");
 }
 
 function validateScene(scene) {
