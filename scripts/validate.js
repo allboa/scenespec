@@ -14,7 +14,7 @@ const addFormats = require("ajv-formats");
 const ROOT = path.resolve(__dirname, "..");
 const SCHEMA = path.join(ROOT, "schema", "scene-0.1.schema.json");
 
-const ajv = new Ajv2020({ allErrors: true, strict: true, strictRequired: false });
+const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
 const schemaValidate = ajv.compile(JSON.parse(fs.readFileSync(SCHEMA, "utf8")));
 
@@ -32,10 +32,27 @@ function checkExtent(where, e, errors) {
 }
 
 // Checks that need the whole document: ids resolve, ids are unique,
-// geometry matches layer kind, extents are ordered.
+// geometry matches layer kind, extents are ordered, origin and CRS rules.
 function semanticErrors(scene) {
   const errors = [];
   const data = scene.data || {};
+  const view = scene.view || {};
+  for (const [id, ref] of Object.entries(data)) {
+    if (ref.origin_subtracted === true && !view.local_origin) {
+      errors.push(`/data/${id}: origin_subtracted is true but view.local_origin is absent`);
+    }
+    // 0.1: vector coordinates are in the view CRS. Compared as JSON values,
+    // so "EPSG:3031" and an equivalent PROJJSON object do not match.
+    if (ref.geometry && ref.geometry.crs !== undefined && view.crs !== undefined &&
+        JSON.stringify(ref.geometry.crs) !== JSON.stringify(view.crs)) {
+      errors.push(`/data/${id}: geometry.crs must equal view.crs in 0.1`);
+    }
+  }
+  // Raster values and mesh tables are plain tables, not vector data.
+  const needTable = (where, id) => {
+    const ref = needData(where, id);
+    if (ref && ref.geometry) errors.push(`${where}: data "${id}" has a geometry column; expected a plain table`);
+  };
   const needData = (where, id) => {
     if (!Object.prototype.hasOwnProperty.call(data, id)) {
       errors.push(`${where}: data id "${id}" is not defined in data`);
@@ -59,11 +76,11 @@ function semanticErrors(scene) {
         }
       }
     } else if (layer.kind === "raster") {
-      needData(where, layer.values);
+      needTable(where, layer.values);
       checkExtent(`${where}/grid`, layer.grid && layer.grid.extent, errors);
       if (layer.mesh) {
-        needData(`${where}/mesh`, layer.mesh.vertices);
-        needData(`${where}/mesh`, layer.mesh.indices);
+        needTable(`${where}/mesh`, layer.mesh.vertices);
+        needTable(`${where}/mesh`, layer.mesh.indices);
       }
     }
   });

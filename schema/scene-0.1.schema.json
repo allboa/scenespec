@@ -70,16 +70,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": [
-            "GeographicCRS",
-            "GeodeticCRS",
-            "ProjectedCRS",
-            "CompoundCRS",
-            "BoundCRS",
-            "EngineeringCRS",
-            "DerivedGeographicCRS",
-            "DerivedProjectedCRS"
-          ]
+          "minLength": 1
         }
       }
     },
@@ -117,10 +108,10 @@
         "type": {
           "enum": [
             "projected",
-            "orthographic",
+            "cartesian",
             "globe"
           ],
-          "description": "projected: a flat map of view CRS coordinates, which must be a projected CRS; crs is required. orthographic: a flat Cartesian plane drawn as-is with no map semantics; crs is optional and informational. globe: a 3D sphere; crs is required and is the geographic CRS of positions given in the view."
+          "description": "projected: a flat map of view CRS coordinates; crs is required. It is usually a projected CRS, but a geographic CRS is allowed and is drawn flat as lon/lat (plate carree). cartesian: a flat Cartesian plane drawn as-is with no map semantics; crs is optional and informational. globe: a 3D sphere; crs is required and is the geographic CRS of positions given in the view."
         },
         "crs": {
           "$ref": "#/$defs/crs"
@@ -158,7 +149,10 @@
             "type": "object",
             "required": [
               "crs"
-            ]
+            ],
+            "properties": {
+              "crs": true
+            }
           }
         }
       ]
@@ -195,7 +189,7 @@
         "origin_subtracted": {
           "type": "boolean",
           "default": false,
-          "description": "True when coordinates in this data have view.local_origin subtracted."
+          "description": "True when coordinates in this data have view.local_origin subtracted. Requires view.local_origin (checked by the validator)."
         }
       },
       "oneOf": [
@@ -206,9 +200,18 @@
           "not": {
             "required": [
               "url"
-            ]
+            ],
+            "type": "object",
+            "properties": {
+              "blob": true,
+              "url": true
+            }
           },
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "blob": true,
+            "url": true
+          }
         },
         {
           "required": [
@@ -217,9 +220,18 @@
           "not": {
             "required": [
               "blob"
-            ]
+            ],
+            "type": "object",
+            "properties": {
+              "blob": true,
+              "url": true
+            }
           },
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "blob": true,
+            "url": true
+          }
         }
       ]
     },
@@ -250,7 +262,7 @@
         },
         "crs": {
           "$ref": "#/$defs/crs",
-          "description": "CRS of the coordinates. When absent, coordinates are in the view CRS. In 0.1 vector coordinates must be in the view CRS; this field records it and leaves room for renderer-side reprojection later."
+          "description": "CRS of the coordinates. When absent, coordinates are in the view CRS. In 0.1 vector coordinates must be in the view CRS, so when present it must equal view.crs exactly (the validator compares the JSON values); it leaves room for renderer-side reprojection later."
         }
       }
     },
@@ -343,11 +355,18 @@
           "maxItems": 2
         },
         "nodata": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "description": "Optional sentinel value meaning no data. Arrow nulls also mean no data."
+          "description": "Optional value meaning no data: a number, or the string \"NaN\" to say NaN cells mean no data (JSON has no NaN literal). Arrow nulls always mean no data. null is the same as absent.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "const": "NaN"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -395,6 +414,7 @@
         "id": {
           "$ref": "#/$defs/id"
         },
+        "kind": true,
         "label": {
           "type": "string",
           "description": "Human-readable name for layer lists and legends."

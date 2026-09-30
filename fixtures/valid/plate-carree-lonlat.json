@@ -1,0 +1,12 @@
+{
+  "version": "0.1",
+  "view": { "type": "projected", "crs": "OGC:CRS84", "extent": [-180, 180, -90, -40] },
+  "data": {
+    "coast": {
+      "format": "arrow-ipc-stream",
+      "blob": "coast",
+      "geometry": { "column": "geometry", "encoding": "geoarrow.linestring", "crs": "OGC:CRS84" }
+    }
+  },
+  "layers": [{ "id": "coast", "kind": "path", "data": "coast", "stroke": [60, 66, 72, 255] }]
+}

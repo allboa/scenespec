@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "view": { "type": "orthographic", "extent": [0, 100, 0, 50] },
+  "view": { "type": "cartesian", "extent": [0, 100, 0, 50] },
   "data": {
     "tracks": {
       "format": "arrow-ipc-stream",

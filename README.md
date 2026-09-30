@@ -41,9 +41,10 @@ Agents and humans working here follow the org brief:
 }
 ```
 
-- **view**: `type` is `projected` (flat map of a projected CRS; `crs`
-  required), `orthographic` (flat Cartesian plane, `crs` optional) or `globe`
-  (`crs` required). `crs` is `authority:code` or a PROJJSON object. `center`,
+- **view**: `type` is `projected` (flat map of view CRS coordinates; `crs`
+  required; usually a projected CRS, but a geographic CRS is allowed and is
+  drawn flat as lon/lat, plate carree), `cartesian` (flat Cartesian plane,
+  `crs` optional) or `globe` (`crs` required). `crs` is `authority:code` or a PROJJSON object. `center`,
   `extent` (`[xmin, xmax, ymin, ymax]`) and `local_origin` are in view CRS
   units. `local_origin` is the float32 precision provision: renderers draw
   relative to it, and data marked `origin_subtracted` already have it
@@ -51,7 +52,10 @@ Agents and humans working here follow the org brief:
 - **data**: references keyed by id. Each is Arrow IPC (`arrow-ipc-stream` or
   `arrow-ipc-file`) held as exactly one of a transport `blob` key or a `url`.
   Vector tables declare their `geometry` column with a native GeoArrow
-  encoding; WKB and WKT are not allowed.
+  encoding; WKB and WKT are not allowed. In 0.1 vector coordinates are in
+  the view CRS: if `geometry.crs` is given it must equal `view.crs` exactly
+  (compared as JSON values). `origin_subtracted: true` requires
+  `view.local_origin`.
 - **layers**: drawn in order, first at the bottom. `kind` is `polygon`,
   `path`, `point` or `raster`. Vector layers name a `data` id; the validator
   checks the geometry encoding fits the kind.
@@ -62,7 +66,10 @@ Agents and humans working here follow the org brief:
 - **raster**: a `grid` descriptor (`crs`, `extent`, `dim` as `[ncol, nrow]`,
   optional `nodata`), a `values` data id (row-major, row 0 at ymax), and
   optionally a pre-projected `mesh` (vertex table with `position` in view CRS
-  units and `uv` into the grid, plus an index table).
+  units and `uv` into the grid, plus an index table). `values` and mesh
+  tables are plain tables and must not declare a geometry column. `nodata`
+  is a number, or the string `"NaN"` to say NaN cells mean no data (JSON has
+  no NaN literal); Arrow nulls always mean no data.
 
 ## Validate
 
@@ -78,7 +85,9 @@ pull request, and also checks that every file is ASCII.
 
 Validation has two stages: the JSON Schema, then cross-reference checks the
 schema cannot express (data ids resolve, layer ids are unique, geometry
-encoding matches layer kind, extents are ordered).
+encoding matches layer kind, extents are ordered, `origin_subtracted` has a
+`view.local_origin`, `geometry.crs` equals `view.crs`, raster value and mesh
+tables have no geometry column).
 
 ## Open questions
 
@@ -89,18 +98,21 @@ post.
   0.1: data only. A color is a constant RGBA or a named RGBA column computed
   by the producer (in R); rasters use a named palette with a range. There are
   no accessor functions or expressions evaluated in the browser. Deferred: an
-  expression form, and a registry of palette names (0.1 leaves `palette.name`
-  as an open string that renderers resolve).
+  expression form, and a registry of palette names. 0.1 leaves
+  `palette.name` as an open string; a renderer that does not know a palette
+  name reports an error for that layer rather than silently substituting
+  another palette.
 - **Minimum grid descriptor?** Settled for 0.1: `crs`, `extent` and `dim`
-  are required; `nodata` is optional because producers such as GDAL commonly
-  carry a sentinel value and Arrow nulls do not cover that. Deferred:
-  overviews, tiling and COG sources by URL. These depend on gate A (the
-  tiled-raster approach, plan issue 4), so 0.1 raster values arrive as an
-  Arrow table only.
-- **View type names.** 0.1 uses `projected`, `orthographic` and `globe`. The
+  are required; `nodata` is optional (a number or `"NaN"`) because producers
+  such as GDAL commonly carry a sentinel value and Arrow nulls do not cover
+  that. Deferred: overviews, tiling and COG sources by URL. These depend on
+  gate A (the tiled-raster approach, plan issue 4), so 0.1 raster values
+  arrive as an Arrow table only. COG or other URL raster sources can be added
+  later as a new data reference `format` without breaking 0.1 scenes.
+- **View type names.** 0.1 uses `projected`, `cartesian` and `globe`. The
   probe (0.0.1) said `orthographic` for what 0.1 calls `projected`; its
-  conversion uses `projected`. The meaning of `orthographic` (a plain
-  Cartesian plane) is provisional.
+  conversion uses `projected`. 0.1 avoids `orthographic` because it names
+  both a map projection and a renderer view class.
 - **Vector CRS.** Vector coordinates must be in the view CRS in 0.1; the
   optional `geometry.crs` records this and leaves room for renderer-side
   reprojection.

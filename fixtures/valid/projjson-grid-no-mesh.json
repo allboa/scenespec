@@ -20,7 +20,7 @@
         "crs": "EPSG:3031",
         "extent": [-3950000, 3950000, -3950000, 4350000],
         "dim": [316, 332],
-        "nodata": -9999
+        "nodata": "NaN"
       },
       "values": "ice",
       "palette": { "name": "ice", "range": [0, 100] },
