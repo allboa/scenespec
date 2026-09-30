@@ -1,0 +1,661 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/allboa/scenespec/main/schema/scene-0.1.schema.json",
+  "title": "allonboard scene spec 0.1",
+  "description": "A renderer-neutral description of a map scene: a view in its own CRS, named data references, and layers that draw those data with styling given as data. A renderer implements this spec; nothing here names or assumes a particular renderer.",
+  "type": "object",
+  "required": [
+    "version",
+    "view",
+    "data",
+    "layers"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional pointer to this schema. Ignored by renderers."
+    },
+    "version": {
+      "const": "0.1",
+      "description": "Scene spec version. Only 0.1 validates against this schema."
+    },
+    "view": {
+      "$ref": "#/$defs/view"
+    },
+    "data": {
+      "type": "object",
+      "description": "Data references keyed by id. Layers refer to data by these ids.",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/dataRef"
+      }
+    },
+    "layers": {
+      "type": "array",
+      "description": "Layers in drawing order: the first layer is drawn first (at the bottom).",
+      "items": {
+        "$ref": "#/$defs/layer"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+      "maxLength": 128,
+      "description": "An identifier: a letter, then letters, digits, underscore, dot or hyphen."
+    },
+    "crs": {
+      "description": "A coordinate reference system: an authority:code string such as EPSG:3031, or a PROJJSON object.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*:[A-Za-z0-9_.-]+$",
+          "description": "authority:code, for example EPSG:3031 or OGC:CRS84."
+        },
+        {
+          "$ref": "#/$defs/projjson"
+        }
+      ]
+    },
+    "projjson": {
+      "type": "object",
+      "description": "A PROJJSON CRS object (https://proj.org/specifications/projjson.html). Only the top-level shape is checked here; full PROJJSON validation is out of scope for 0.1.",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "xy": {
+      "type": "array",
+      "description": "A position [x, y] in the units of the CRS it belongs to.",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "extent": {
+      "type": "array",
+      "description": "A bounding box [xmin, xmax, ymin, ymax] in the units of the CRS it belongs to. The validator also checks xmin < xmax and ymin < ymax.",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "view": {
+      "type": "object",
+      "description": "Where and how the scene is viewed. All positions are in view CRS units.",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "projected",
+            "cartesian",
+            "globe"
+          ],
+          "description": "projected: a flat map of view CRS coordinates; crs is required. It is usually a projected CRS, but a geographic CRS is allowed and is drawn flat as lon/lat (plate carree). cartesian: a flat Cartesian plane drawn as-is with no map semantics; crs is optional and informational. globe: a 3D sphere; crs is required and is the geographic CRS of positions given in the view."
+        },
+        "crs": {
+          "$ref": "#/$defs/crs"
+        },
+        "center": {
+          "$ref": "#/$defs/xy",
+          "description": "Initial center of the view in view CRS units ([lon, lat] for globe). Defaults to the center of extent when extent is given."
+        },
+        "extent": {
+          "$ref": "#/$defs/extent",
+          "description": "Initial region to fit in the view, in view CRS units. When absent, a renderer fits the extent of the data."
+        },
+        "local_origin": {
+          "$ref": "#/$defs/xy",
+          "description": "Float32 precision provision. A point in view CRS units near the data. Renderers draw coordinates relative to this point. Data references marked origin_subtracted store coordinates with this point already subtracted."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": [
+                  "projected",
+                  "globe"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "crs"
+            ],
+            "properties": {
+              "crs": true
+            }
+          }
+        }
+      ]
+    },
+    "dataRef": {
+      "type": "object",
+      "description": "A reference to tabular data in Arrow IPC form, held either as a blob delivered by the transport or at a URL the renderer fetches.",
+      "required": [
+        "format"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "enum": [
+            "arrow-ipc-stream",
+            "arrow-ipc-file"
+          ],
+          "description": "Arrow IPC streaming format or Arrow IPC file format."
+        },
+        "blob": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Key of a blob delivered alongside the scene by the transport (embedded, served or handed over in-process)."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri-reference",
+          "minLength": 1,
+          "description": "Absolute or scene-relative URL the renderer fetches."
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "origin_subtracted": {
+          "type": "boolean",
+          "default": false,
+          "description": "True when coordinates in this data have view.local_origin subtracted. Requires view.local_origin (checked by the validator)."
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "blob"
+          ],
+          "not": {
+            "required": [
+              "url"
+            ],
+            "type": "object",
+            "properties": {
+              "blob": true,
+              "url": true
+            }
+          },
+          "type": "object",
+          "properties": {
+            "blob": true,
+            "url": true
+          }
+        },
+        {
+          "required": [
+            "url"
+          ],
+          "not": {
+            "required": [
+              "blob"
+            ],
+            "type": "object",
+            "properties": {
+              "blob": true,
+              "url": true
+            }
+          },
+          "type": "object",
+          "properties": {
+            "blob": true,
+            "url": true
+          }
+        }
+      ]
+    },
+    "geometry": {
+      "type": "object",
+      "description": "The geometry column of a vector table. Only native GeoArrow encodings are allowed; WKB and WKT are converted before data leave the producer.",
+      "required": [
+        "column",
+        "encoding"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "column": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the geometry column."
+        },
+        "encoding": {
+          "enum": [
+            "geoarrow.point",
+            "geoarrow.linestring",
+            "geoarrow.polygon",
+            "geoarrow.multipoint",
+            "geoarrow.multilinestring",
+            "geoarrow.multipolygon"
+          ],
+          "description": "GeoArrow native extension type of the column."
+        },
+        "crs": {
+          "$ref": "#/$defs/crs",
+          "description": "CRS of the coordinates. When absent, coordinates are in the view CRS. In 0.1 vector coordinates must be in the view CRS, so when present it must equal view.crs exactly (the validator compares the JSON values); it leaves room for renderer-side reprojection later."
+        }
+      }
+    },
+    "rgba": {
+      "type": "array",
+      "description": "A constant color as [r, g, b, a], each an integer 0 to 255.",
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 255
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "color": {
+      "description": "A color as data: a constant RGBA, or the name of a per-row RGBA column (FixedSizeList<uint8, 4>) in the layer's data.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/rgba"
+        },
+        {
+          "type": "object",
+          "required": [
+            "column"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "column": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "palette": {
+      "type": "object",
+      "description": "Maps raster values to colors. range[0] maps to the start of the named palette and range[1] to its end; values outside are clamped.",
+      "required": [
+        "name",
+        "range"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Palette name. 0.1 does not fix a registry of names; see README open questions."
+        },
+        "range": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "description": "Grid descriptor for a raster: the regular grid the values lie on. Cell values are row-major, row 0 at ymax, column 0 at xmin.",
+      "required": [
+        "crs",
+        "extent",
+        "dim"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "crs": {
+          "$ref": "#/$defs/crs"
+        },
+        "extent": {
+          "$ref": "#/$defs/extent",
+          "description": "Outer edges of the grid, [xmin, xmax, ymin, ymax], in grid CRS units."
+        },
+        "dim": {
+          "type": "array",
+          "description": "[ncol, nrow].",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "nodata": {
+          "description": "Optional value meaning no data: a number, or the string \"NaN\" to say NaN cells mean no data (JSON has no NaN literal). Arrow nulls always mean no data. null is the same as absent.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "const": "NaN"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "mesh": {
+      "type": "object",
+      "description": "A pre-projected triangle mesh for a raster. Vertex positions are in view CRS units; uv addresses the grid, u from 0 at xmin to 1 at xmax, v from 0 at row 0 (ymax) to 1 at the last row (ymin).",
+      "required": [
+        "vertices",
+        "indices"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "vertices": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of the vertex table."
+        },
+        "indices": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of the index table, three indices per triangle."
+        },
+        "position_column": {
+          "type": "string",
+          "default": "position",
+          "description": "FixedSizeList<float, 2 or 3> of view CRS positions."
+        },
+        "uv_column": {
+          "type": "string",
+          "default": "uv",
+          "description": "FixedSizeList<float, 2> of grid texture coordinates."
+        },
+        "index_column": {
+          "type": "string",
+          "default": "index",
+          "description": "Unsigned integer vertex indices."
+        }
+      }
+    },
+    "layerCommon": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": true,
+        "label": {
+          "type": "string",
+          "description": "Human-readable name for layer lists and legends."
+        },
+        "visible": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "layerVector": {
+      "type": "object",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of a vector table with a geometry column."
+        }
+      }
+    },
+    "layerPolygon": {
+      "type": "object",
+      "description": "Filled areas from polygon or multipolygon geometry.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        },
+        {
+          "$ref": "#/$defs/layerVector"
+        }
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "data": true,
+        "kind": {
+          "const": "polygon"
+        },
+        "fill": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke_width_px": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "layerPath": {
+      "type": "object",
+      "description": "Lines from linestring or multilinestring geometry.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        },
+        {
+          "$ref": "#/$defs/layerVector"
+        }
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "data": true,
+        "kind": {
+          "const": "path"
+        },
+        "stroke": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke_width_px": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "layerPoint": {
+      "type": "object",
+      "description": "Marks at point or multipoint geometry.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        },
+        {
+          "$ref": "#/$defs/layerVector"
+        }
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "data": true,
+        "kind": {
+          "const": "point"
+        },
+        "fill": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke_width_px": {
+          "type": "number",
+          "minimum": 0
+        },
+        "radius_px": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "layerRaster": {
+      "type": "object",
+      "description": "A raster: values on a grid, colored by a palette, optionally drawn on a pre-projected mesh. Without a mesh, the renderer places the grid in the view CRS itself.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/layerCommon"
+        }
+      ],
+      "required": [
+        "grid",
+        "values",
+        "palette"
+      ],
+      "properties": {
+        "id": true,
+        "label": true,
+        "visible": true,
+        "kind": {
+          "const": "raster"
+        },
+        "grid": {
+          "$ref": "#/$defs/grid"
+        },
+        "values": {
+          "$ref": "#/$defs/id",
+          "description": "Data id of a table with one numeric column of ncol * nrow cell values."
+        },
+        "values_column": {
+          "type": "string",
+          "default": "value"
+        },
+        "palette": {
+          "$ref": "#/$defs/palette"
+        },
+        "mesh": {
+          "$ref": "#/$defs/mesh"
+        }
+      },
+      "additionalProperties": false
+    },
+    "layer": {
+      "type": "object",
+      "description": "A layer. kind selects which of the layer definitions applies.",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "polygon",
+            "path",
+            "point",
+            "raster"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "polygon"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerPolygon"
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "path"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerPath"
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "point"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerPoint"
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "raster"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/layerRaster"
+          }
+        }
+      ]
+    }
+  }
+}

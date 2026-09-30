@@ -1,0 +1,15 @@
+{
+  "name": "scenespec",
+  "version": "0.1.0",
+  "private": true,
+  "description": "allonboard scene spec: JSON Schema, fixtures, validator and conformance scenes",
+  "license": "MIT",
+  "scripts": {
+    "test": "node scripts/check-terms.js && node scripts/validate.js",
+    "validate": "node scripts/validate.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

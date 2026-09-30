@@ -1,0 +1,29 @@
+{
+  "version": "0.1",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3577",
+    "extent": [1000000, 2200000, -4600000, -3400000],
+    "local_origin": [1600000, -4000000]
+  },
+  "data": {
+    "stations": {
+      "format": "arrow-ipc-file",
+      "url": "data/stations.arrow",
+      "origin_subtracted": true,
+      "geometry": { "column": "geom", "encoding": "geoarrow.point" }
+    }
+  },
+  "layers": [
+    {
+      "id": "stations",
+      "kind": "point",
+      "label": "Stations",
+      "data": "stations",
+      "fill": { "column": "rgba" },
+      "stroke": [0, 0, 0, 255],
+      "stroke_width_px": 0.5,
+      "radius_px": 3
+    }
+  ]
+}

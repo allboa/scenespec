@@ -1,0 +1,13 @@
+{
+  "version": "0.1",
+  "view": { "type": "projected", "crs": "EPSG:3577" },
+  "data": {
+    "stations": {
+      "format": "arrow-ipc-file",
+      "url": "data/stations.arrow",
+      "origin_subtracted": true,
+      "geometry": { "column": "geom", "encoding": "geoarrow.point" }
+    }
+  },
+  "layers": [{ "id": "stations", "kind": "point", "data": "stations" }]
+}

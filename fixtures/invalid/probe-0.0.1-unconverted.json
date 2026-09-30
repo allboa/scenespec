@@ -1,0 +1,77 @@
+{
+  "version": "0.0.1",
+  "crs": "EPSG:3031",
+  "view": {
+    "type": "orthographic",
+    "center": [
+      0,
+      0
+    ],
+    "extent_m": 11583807.752768988
+  },
+  "layers": [
+    {
+      "id": "sst",
+      "type": "raster-mesh",
+      "label": "Synthetic SST-like field",
+      "mesh": "sst_mesh",
+      "indices": "sst_index",
+      "values": "sst_values",
+      "grid": {
+        "crs": "EPSG:4326",
+        "extent": [
+          -180,
+          180,
+          -90,
+          -40.0
+        ],
+        "dim": [
+          360,
+          50
+        ]
+      },
+      "palette": {
+        "name": "ocean",
+        "range": [
+          -2,
+          13
+        ]
+      }
+    },
+    {
+      "id": "land",
+      "type": "polygon",
+      "label": "Land (50m)",
+      "data": "land",
+      "fill": [
+        218,
+        213,
+        202,
+        255
+      ]
+    },
+    {
+      "id": "graticule",
+      "type": "path",
+      "label": "Graticule",
+      "data": "graticule",
+      "color": {
+        "column": "color"
+      },
+      "width_px": 1
+    },
+    {
+      "id": "coast",
+      "type": "path",
+      "label": "Coastline (50m)",
+      "data": "coast",
+      "color": [
+        60,
+        66,
+        72,
+        255
+      ],
+      "width_px": 1
+    }
+  ]
+}

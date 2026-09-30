@@ -1,0 +1,14 @@
+{
+  "version": "0.1",
+  "view": { "type": "projected", "crs": "EPSG:3031" },
+  "data": {
+    "land": {
+      "format": "arrow-ipc-stream",
+      "blob": "land",
+      "geometry": { "column": "geometry", "encoding": "geoarrow.polygon" }
+    }
+  },
+  "layers": [
+    { "id": "land", "kind": "polygon", "data": "land", "getFillColor": [218, 213, 202, 255] }
+  ]
+}

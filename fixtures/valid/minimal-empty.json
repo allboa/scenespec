@@ -1,0 +1,6 @@
+{
+  "version": "0.1",
+  "view": { "type": "projected", "crs": "EPSG:3031" },
+  "data": {},
+  "layers": []
+}

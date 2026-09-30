@@ -1,0 +1,8 @@
+{
+  "version": "0.1",
+  "view": { "type": "projected", "crs": "EPSG:3031" },
+  "data": { "v": { "format": "arrow-ipc-stream", "blob": "v" } },
+  "layers": [
+    { "id": "r", "kind": "raster", "values": "v", "palette": { "name": "ocean", "range": [-2, 13] } }
+  ]
+}

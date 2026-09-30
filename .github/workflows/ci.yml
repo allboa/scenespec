@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci && npm test
+      - name: ASCII only
+        run: |
+          if grep -rlP '[^\x00-\x7F]' . --exclude-dir=node_modules --exclude-dir=.git; then
+            echo "Non-ASCII characters found in the files above"; exit 1
+          fi
