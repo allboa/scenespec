@@ -17,7 +17,8 @@ Agents and humans working here follow the org brief:
 | `schema/scene-0.1.schema.json` | JSON Schema (draft 2020-12) for scene spec 0.1 |
 | `schema/scene-0.2.schema.json` | JSON Schema for scene spec 0.2: 0.1 plus tiled COG rasters |
 | `schema/scene-0.3.schema.json` | JSON Schema for scene spec 0.3: 0.2 plus colour images (RGB and RGBA) and JPEG tiles |
-| `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image |
+| `schema/scene-0.4.schema.json` | JSON Schema for scene spec 0.4: 0.3 plus `view.bounds`, a region the camera is kept within |
+| `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image. `polar-probe-bounds.json` (0.4) is the probe with `view.bounds` |
 | `fixtures/valid/` | Minimal scenes that must validate |
 | `fixtures/invalid/` | Scenes that must fail, one reason each |
 | `scripts/validate.js` | Schema validation (ajv, schema chosen by the scene's `version`) plus cross-reference checks |
@@ -237,7 +238,39 @@ per sample; the larger differences sit at the sharp ring edges, where
 decoders upsample chroma differently. The COG itself is not in this repo
 (CI keeps every file ASCII); its Arrow mesh tables are not shipped either.
 
+## 0.4: view bounds
+
+0.4 is 0.3 plus one optional view field, `bounds`: an extent in view CRS
+units that the camera is kept within: the camera never shows more than
+`bounds` plus a margin, so panning stops at their edge and zooming out stops
+when they, with the margin, fit the canvas. The margin is the renderer's
+choice (it lets the edge be seen; aobcore's renderer uses a quarter of the
+bounds' size on each side). `extent` is still the initial view. Every 0.3
+construct is unchanged, so a 0.3 scene becomes a 0.4 scene by changing `version`.
+Without `bounds` the camera is not limited, as before.
+
+```json
+"view": { "type": "projected", "crs": "EPSG:3031",
+          "extent": [-3e6, 3e6, -3e6, 3e6],
+          "bounds": [-1.28e7, 1.28e7, -1.28e7, 1.28e7] }
+```
+
+`bounds` limits the camera only. It is not a clip: data outside it is drawn
+wherever the camera shows it, and tile plans keep their own coverage. It
+follows allboa/design decision 0005, where a producer derives a default
+domain from the view CRS's centre (the whole disc for Lambert azimuthal
+equal area; about the equator for south polar stereographic). A globe view
+has no bounds; the validator rejects them there (a scene spec choice, not
+part of decision 0005). The validator also rejects an initial `center`
+outside `bounds`, or an `extent` that does not overlap them, since the
+camera could never show that view. `conformance/polar-probe-bounds.json` is
+the polar probe as a 0.4 scene with bounds from decision 0005 (`k = 2`)
+as aobcore's `crs_domain()` computes them, measuring stretch against the
+centre's own scale (EPSG:3031 is 0.97 there), so 12.58e6 m rather than the
+decision table's 12.8e6 m, which measured against a sphere.
+
 ## Validate
+
 
 ```sh
 npm ci
