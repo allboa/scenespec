@@ -13,7 +13,7 @@ const Ajv2020 = require("ajv/dist/2020");
 const addFormats = require("ajv-formats");
 
 const ROOT = path.resolve(__dirname, "..");
-const VERSIONS = ["0.1", "0.2"];
+const VERSIONS = ["0.1", "0.2", "0.3"];
 
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
@@ -40,7 +40,8 @@ function checkExtent(where, e, errors) {
 
 // Checks that need the whole document: ids resolve, ids are unique,
 // geometry matches layer kind, extents are ordered, origin and CRS rules,
-// and (0.2) tile plans are consistent with their levels and sources.
+// (0.2) tile plans are consistent with their levels and sources, and (0.3)
+// rgb bands and jpeg encodings fit every level.
 function semanticErrors(scene) {
   const errors = [];
   const data = scene.data || {};
@@ -123,8 +124,16 @@ function tiledRasterErrors(where, layer, view, needData, needTable, errors) {
     levels.add(lv.level);
     checkExtent(`${lw}/grid`, lv.grid.extent, errors);
     const enc = lv.encoding;
-    if ((enc.band || 1) > (enc.samples_per_pixel || 1)) {
-      errors.push(`${lw}/encoding: band ${enc.band} is more than samples_per_pixel ${enc.samples_per_pixel || 1}`);
+    const spp = enc.samples_per_pixel || 1;
+    if (layer.rgb) {
+      rgbErrors(`${lw}/encoding`, layer.rgb, enc, spp, errors);
+    } else if ((enc.band || 1) > spp) {
+      errors.push(`${lw}/encoding: band ${enc.band} is more than samples_per_pixel ${spp}`);
+    }
+    if (enc.codec === "jpeg") {
+      jpegErrors(`${lw}/encoding`, enc, spp, errors);
+    } else if (enc.jpeg_tables !== undefined) {
+      errors.push(`${lw}/encoding: jpeg_tables is only for codec jpeg`);
     }
     const [ncol, nrow] = lv.grid.dim;
     const tiles = new Set();
@@ -160,6 +169,36 @@ function tiledRasterErrors(where, layer, view, needData, needTable, errors) {
   };
   checkRuns(vertexRuns, "vertex");
   checkRuns(indexRuns, "index");
+}
+
+// 0.3: a layer drawn as a colour image names its bands itself, and every
+// level must hold them, interleaved.
+function rgbErrors(where, rgb, enc, spp, errors) {
+  if (enc.band !== undefined) {
+    errors.push(`${where}: band is not used with rgb; give the bands in rgb.bands`);
+  }
+  const named = rgb.bands.map((b) => ["rgb.bands", b]);
+  if (rgb.alpha !== undefined) named.push(["rgb.alpha", rgb.alpha]);
+  for (const [what, b] of named) {
+    if (b > spp) errors.push(`${where}: ${what} ${b} is more than samples_per_pixel ${spp}`);
+  }
+  if (rgb.alpha !== undefined && rgb.bands.includes(rgb.alpha)) {
+    errors.push(`${where}: rgb.alpha ${rgb.alpha} is also a colour band`);
+  }
+  if ((enc.planar || "interleaved") !== "interleaved") {
+    errors.push(`${where}: rgb needs planar interleaved (a tile record points at one band's bytes when separate)`);
+  }
+  if (enc.dtype !== "uint8" && !rgb.range) {
+    errors.push(`${where}: rgb on ${enc.dtype} samples needs rgb.range to scale them`);
+  }
+}
+
+// 0.3: JPEG tiles are 8-bit, pixel-interleaved greyscale or YCbCr.
+function jpegErrors(where, enc, spp, errors) {
+  if (enc.dtype !== "uint8") errors.push(`${where}: codec jpeg needs dtype uint8`);
+  if ((enc.predictor || "none") !== "none") errors.push(`${where}: codec jpeg takes no predictor`);
+  if ((enc.planar || "interleaved") !== "interleaved") errors.push(`${where}: codec jpeg needs planar interleaved`);
+  if (spp !== 1 && spp !== 3) errors.push(`${where}: codec jpeg needs samples_per_pixel 1 or 3 (got ${spp})`);
 }
 
 function validateScene(scene) {
