@@ -17,6 +17,7 @@ Agents and humans working here follow the org brief:
 | `schema/scene-0.1.schema.json` | JSON Schema (draft 2020-12) for scene spec 0.1 |
 | `schema/scene-0.2.schema.json` | JSON Schema for scene spec 0.2: 0.1 plus tiled COG rasters |
 | `schema/scene-0.3.schema.json` | JSON Schema for scene spec 0.3: 0.2 plus colour images (RGB and RGBA) and JPEG tiles |
+| `schema/scene-0.4.schema.json` | JSON Schema for scene spec 0.4: 0.3 plus `view.bounds`, a region the camera is kept within |
 | `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image |
 | `fixtures/valid/` | Minimal scenes that must validate |
 | `fixtures/invalid/` | Scenes that must fail, one reason each |
@@ -237,7 +238,28 @@ per sample; the larger differences sit at the sharp ring edges, where
 decoders upsample chroma differently. The COG itself is not in this repo
 (CI keeps every file ASCII); its Arrow mesh tables are not shipped either.
 
-## Validate
+## 0.4: view bounds
+
+0.4 is 0.3 plus one optional view field, `bounds`: an extent in view CRS
+units that the camera is kept within. Panning stops at it and zooming out
+stops when it fills the canvas; a renderer may leave a margin so the edge
+can be seen. `extent` is still the initial view. Every 0.3 construct is
+unchanged, so a 0.3 scene becomes a 0.4 scene by changing `version`.
+Without `bounds` the camera is not limited, as before.
+
+```json
+"view": { "type": "projected", "crs": "EPSG:3031",
+          "extent": [-3e6, 3e6, -3e6, 3e6],
+          "bounds": [-1.28e7, 1.28e7, -1.28e7, 1.28e7] }
+```
+
+`bounds` limits the camera only. It is not a clip: data outside it is drawn
+wherever the camera shows it, and tile plans keep their own coverage. It
+follows allboa/design decision 0005, where a producer derives a default
+domain from the view CRS's centre (the whole disc for Lambert azimuthal
+equal area; about the equator for south polar stereographic). A globe view
+has no bounds; the validator rejects them there.
+
 
 ```sh
 npm ci

@@ -1,0 +1,10 @@
+{
+  "version": "0.4",
+  "view": {
+    "type": "globe",
+    "crs": "OGC:CRS84",
+    "bounds": [-180, 180, -90, 90]
+  },
+  "data": { },
+  "layers": []
+}

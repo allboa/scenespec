@@ -13,7 +13,7 @@ const Ajv2020 = require("ajv/dist/2020");
 const addFormats = require("ajv-formats");
 
 const ROOT = path.resolve(__dirname, "..");
-const VERSIONS = ["0.1", "0.2", "0.3"];
+const VERSIONS = ["0.1", "0.2", "0.3", "0.4"];
 
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
@@ -73,6 +73,11 @@ function semanticErrors(scene) {
     else if (ref.geometry) errors.push(`${where}: data "${id}" has a geometry column; expected a plain table`);
   };
   checkExtent("/view", scene.view && scene.view.extent, errors);
+  // 0.4: bounds limit a flat camera; a globe has no edge to stop at.
+  if (scene.view && scene.view.bounds) {
+    checkExtent("/view/bounds", scene.view.bounds, errors);
+    if (scene.view.type === "globe") errors.push("/view/bounds: a globe view has no bounds");
+  }
   const seen = new Set();
   (scene.layers || []).forEach((layer, i) => {
     const where = `/layers/${i}`;
