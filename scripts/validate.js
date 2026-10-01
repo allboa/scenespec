@@ -13,7 +13,7 @@ const Ajv2020 = require("ajv/dist/2020");
 const addFormats = require("ajv-formats");
 
 const ROOT = path.resolve(__dirname, "..");
-const VERSIONS = ["0.1", "0.2", "0.3", "0.4"];
+const VERSIONS = ["0.1", "0.2", "0.3", "0.4", "0.5"];
 
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
@@ -32,6 +32,12 @@ const KIND_ENCODINGS = {
 
 const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
+// Version order for checks that start at a given version ("0.10" > "0.9").
+function atLeast(version, min) {
+  const [a, b] = [version, min].map((v) => String(v).split(".").map(Number));
+  return a[0] > b[0] || (a[0] === b[0] && a[1] >= b[1]);
+}
+
 function checkExtent(where, e, errors) {
   if (Array.isArray(e) && e.length === 4 && !(e[0] < e[1] && e[2] < e[3])) {
     errors.push(`${where}: extent must be [xmin, xmax, ymin, ymax] with xmin < xmax and ymin < ymax`);
@@ -40,8 +46,9 @@ function checkExtent(where, e, errors) {
 
 // Checks that need the whole document: ids resolve, ids are unique,
 // geometry matches layer kind, extents are ordered, origin and CRS rules,
-// (0.2) tile plans are consistent with their levels and sources, and (0.3)
-// rgb bands and jpeg encodings fit every level.
+// (0.2) tile plans are consistent with their levels and sources, (0.3)
+// rgb bands and jpeg encodings fit every level, and (0.5) legends name a
+// layer and popups do not name the geometry column.
 function semanticErrors(scene) {
   const errors = [];
   const data = scene.data || {};
@@ -100,6 +107,12 @@ function semanticErrors(scene) {
         } else if (!KIND_ENCODINGS[layer.kind].includes(ref.geometry.encoding)) {
           errors.push(`${where}: ${layer.kind} layer cannot draw ${ref.geometry.encoding}`);
         }
+        // 0.5: popup columns are attributes. Whether they exist in the Arrow
+        // data is for producers and renderers to check; the validator does
+        // not read blobs.
+        if (ref.geometry && layer.popup && layer.popup.columns.includes(ref.geometry.column)) {
+          errors.push(`${where}/popup: "${ref.geometry.column}" is the geometry column, not an attribute`);
+        }
       }
     } else if (layer.kind === "raster") {
       needTable(where, layer.values);
@@ -112,7 +125,59 @@ function semanticErrors(scene) {
       tiledRasterErrors(where, layer, view, needData, needTable, errors);
     }
   });
+  if (atLeast(scene.version, "0.5")) {
+    rangeErrors(scene, errors);
+    legendErrors(scene, errors);
+  }
   return errors;
+}
+
+// 0.5: a range with equal ends cannot be drawn (it divides by zero).
+function rangeErrors(scene, errors) {
+  (scene.layers || []).forEach((layer, i) => {
+    for (const key of ["palette", "rgb"]) {
+      const r = layer[key] && layer[key].range;
+      if (Array.isArray(r) && r[0] === r[1]) {
+        errors.push(`/layers/${i}/${key}/range: ends must differ`);
+      }
+    }
+  });
+}
+
+// 0.5: each legend keys an existing layer; ramp ends differ, stops run 0 to
+// 1 in order, and a palette ramp keys a palette layer and agrees with it.
+function legendErrors(scene, errors) {
+  const layers = new Map((scene.layers || []).map((l) => [l.id, l]));
+  (scene.legends || []).forEach((lg, i) => {
+    const where = `/legends/${i}`;
+    const layer = layers.get(lg.layer);
+    if (!layer) errors.push(`${where}: layer id "${lg.layer}" is not a layer in this scene`);
+    const ramp = lg.ramp;
+    if (!ramp) return;
+    // A reversed range is a reversed key, as a reversed layer palette is.
+    if (ramp.range[0] === ramp.range[1]) {
+      errors.push(`${where}/ramp/range: ends must differ`);
+    }
+    if (ramp.stops) {
+      const at = ramp.stops.map((st) => st.at);
+      if (at[0] !== 0 || at[at.length - 1] !== 1) {
+        errors.push(`${where}/ramp/stops: the first stop must be at 0 and the last at 1`);
+      }
+      for (let k = 1; k < at.length; k++) {
+        if (!(at[k] > at[k - 1])) {
+          errors.push(`${where}/ramp/stops/${k}: at must be greater than the previous stop's`);
+          break;
+        }
+      }
+    }
+    if (ramp.palette && layer) {
+      if (!layer.palette) {
+        errors.push(`${where}/ramp: layer "${lg.layer}" has no palette; key it with stops or classes`);
+      } else if (!(ramp.palette === layer.palette.name && sameJson(ramp.range, layer.palette.range))) {
+        errors.push(`${where}/ramp: palette and range must equal those of layer "${lg.layer}"`);
+      }
+    }
+  });
 }
 
 function tiledRasterErrors(where, layer, view, needData, needTable, errors) {

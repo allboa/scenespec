@@ -1,0 +1,209 @@
+{
+  "version": "0.5",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "extent": [
+      -3000000,
+      3000000,
+      -3000000,
+      3000000
+    ]
+  },
+  "data": {
+    "stations": {
+      "format": "arrow-ipc-stream",
+      "blob": "stations",
+      "geometry": {
+        "column": "geometry",
+        "encoding": "geoarrow.point"
+      }
+    },
+    "zones": {
+      "format": "arrow-ipc-stream",
+      "blob": "zones",
+      "geometry": {
+        "column": "geometry",
+        "encoding": "geoarrow.multipolygon"
+      }
+    },
+    "sst_values": {
+      "format": "arrow-ipc-stream",
+      "blob": "sst_values"
+    }
+  },
+  "layers": [
+    {
+      "id": "sst",
+      "kind": "raster",
+      "label": "Sea surface temperature",
+      "grid": {
+        "crs": "EPSG:3031",
+        "extent": [
+          -3000000,
+          3000000,
+          -3000000,
+          3000000
+        ],
+        "dim": [
+          60,
+          60
+        ],
+        "nodata": "NaN"
+      },
+      "values": "sst_values",
+      "palette": {
+        "name": "ocean",
+        "range": [
+          -2,
+          13
+        ]
+      }
+    },
+    {
+      "id": "zones",
+      "kind": "polygon",
+      "label": "Management zones",
+      "data": "zones",
+      "fill": {
+        "column": "fill"
+      },
+      "stroke": [
+        40,
+        40,
+        40,
+        255
+      ],
+      "stroke_width_px": 1,
+      "popup": {
+        "columns": [
+          "zone",
+          "area_km2",
+          "geometry"
+        ],
+        "trigger": "select"
+      }
+    },
+    {
+      "id": "stations",
+      "kind": "point",
+      "label": "Stations",
+      "data": "stations",
+      "fill": {
+        "column": "fill"
+      },
+      "radius_px": 4,
+      "popup": {
+        "columns": [
+          "name",
+          "depth_m",
+          "sampled"
+        ],
+        "trigger": "point"
+      }
+    }
+  ],
+  "legends": [
+    {
+      "layer": "sst",
+      "title": "SST (degrees C)",
+      "ramp": {
+        "palette": "ocean",
+        "range": [
+          -2,
+          13
+        ]
+      },
+      "na": {
+        "label": "no data",
+        "color": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "layer": "zones",
+      "title": "Zone",
+      "classes": [
+        {
+          "label": "Protected",
+          "color": [
+            27,
+            158,
+            119,
+            160
+          ]
+        },
+        {
+          "label": "Research",
+          "color": [
+            217,
+            95,
+            2,
+            160
+          ]
+        },
+        {
+          "label": "Open",
+          "color": [
+            117,
+            112,
+            179,
+            160
+          ]
+        }
+      ]
+    },
+    {
+      "layer": "stations",
+      "title": "Depth (m)",
+      "ramp": {
+        "range": [
+          0,
+          4000
+        ],
+        "stops": [
+          {
+            "at": 0,
+            "color": [
+              255,
+              255,
+              204,
+              255
+            ]
+          },
+          {
+            "at": 0.5,
+            "color": [
+              65,
+              182,
+              196,
+              255
+            ]
+          },
+          {
+            "at": 1,
+            "color": [
+              8,
+              29,
+              88,
+              255
+            ]
+          }
+        ]
+      },
+      "na": {
+        "label": "unknown",
+        "color": [
+          150,
+          150,
+          150,
+          255
+        ]
+      }
+    }
+  ]
+}

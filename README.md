@@ -18,7 +18,8 @@ Agents and humans working here follow the org brief:
 | `schema/scene-0.2.schema.json` | JSON Schema for scene spec 0.2: 0.1 plus tiled COG rasters |
 | `schema/scene-0.3.schema.json` | JSON Schema for scene spec 0.3: 0.2 plus colour images (RGB and RGBA) and JPEG tiles |
 | `schema/scene-0.4.schema.json` | JSON Schema for scene spec 0.4: 0.3 plus `view.bounds`, a region the camera is kept within |
-| `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image. `polar-probe-bounds.json` (0.4) is the probe with `view.bounds` |
+| `schema/scene-0.5.schema.json` | JSON Schema for scene spec 0.5: 0.4 plus scene-level `legends` and per-layer `popup` |
+| `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image. `polar-probe-bounds.json` (0.4) is the probe with `view.bounds`. `polar-probe-legends-popups.json` (0.5) adds legends and a land popup |
 | `fixtures/valid/` | Minimal scenes that must validate |
 | `fixtures/invalid/` | Scenes that must fail, one reason each |
 | `scripts/validate.js` | Schema validation (ajv, schema chosen by the scene's `version`) plus cross-reference checks |
@@ -203,15 +204,20 @@ band through a palette.
   when all three colour bands equal `grid.nodata` (compared raw, before
   scaling). Other alpha values are straight (not premultiplied) opacity.
 - **sample types**: `uint8` is the v1 case: 0 is zero intensity and 255 is
-  full intensity, with no scaling. Any other `dtype` needs `rgb.range`:
+  full intensity, with no scaling. `uint8` without `range` is the same as
+  `range: [0, 255]` in raw values: `scale` and `offset` are ignored. Any other `dtype` needs `rgb.range`:
   scaled values (raw * scale + offset) from `range[0]` to `range[1]` map
   linearly to zero and full intensity, clamped, for colour and alpha bands
   alike. With `uint8`, `range` is optional and stretches the image.
 - **jpeg codec**: baseline JPEG tiles (TIFF compression 7) with `dtype`
   `uint8`, `planar` `interleaved`, no predictor, and `samples_per_pixel` 1
   (greyscale) or 3 (YCbCr, TIFF photometric 6, the GDAL default for RGB
-  JPEG COGs; the JPEG decoder converts to red, green and blue, so `bands`
-  are `[1, 2, 3]` in that order). All of these are checked. A JPEG COG
+  JPEG COGs). All of these are checked. Photometric is implied by the
+  sample count, 3 meaning YCbCr and 1 meaning greyscale (MinIsBlack), so
+  producers must not emit `jpeg` levels with any other photometric. Band
+  numbers refer to the decoded image: after decoding, band 1 is red, 2
+  green and 3 blue, so `bands` is usually `[1, 2, 3]`. The band order is
+  not checked; another order validates and swaps channels. A JPEG COG
   keeps shared JPEG tables (quantization, Huffman or both) once per image
   in the TIFF JPEGTables tag, not in each tile, so the producer copies those bytes into
   the level's `encoding.jpeg_tables`, base64 encoded. A renderer makes a
@@ -269,6 +275,88 @@ as aobcore's `crs_domain()` computes them, measuring stretch against the
 centre's own scale (EPSG:3031 is 0.97 there), so 12.58e6 m rather than the
 decision table's 12.8e6 m, which measured against a sphere.
 
+## 0.5: legends and popups
+
+0.5 is 0.4 plus a scene-level `legends` array and an optional `popup` on
+vector layers. Every 0.4 construct is unchanged, so a 0.4 scene becomes a
+0.5 scene by changing `version` (with one tightening, below). It serves
+allboa/aobview#6 (legends) and #7 (popups).
+
+```json
+"layers": [
+  { "id": "sst", "kind": "raster", "palette": { "name": "ocean", "range": [-2, 13] }, ... },
+  { "id": "zones", "kind": "polygon", "data": "zones", "fill": { "column": "fill" },
+    "popup": { "columns": ["zone", "area_km2"], "trigger": "select" } },
+  { "id": "stations", "kind": "point", "data": "stations", "fill": { "column": "fill" },
+    "popup": { "columns": ["name", "depth_m"], "trigger": "point" } }
+],
+"legends": [
+  { "layer": "sst", "title": "SST (degrees C)",
+    "ramp": { "palette": "ocean", "range": [-2, 13] },
+    "na": { "label": "no data", "color": [0, 0, 0, 0] } },
+  { "layer": "zones", "title": "Zone",
+    "classes": [ { "label": "Protected", "color": [27, 158, 119, 160] },
+                 { "label": "Open", "color": [117, 112, 179, 160] } ] },
+  { "layer": "stations", "title": "Depth (m)",
+    "ramp": { "range": [0, 4000],
+              "stops": [ { "at": 0, "color": [255, 255, 204, 255] },
+                         { "at": 1, "color": [8, 29, 88, 255] } ] } }
+]
+```
+
+**Legends are data.** A legend is a key the producer writes from the same
+colours it used for the layer, so the key and the drawing cannot disagree.
+The renderer draws it; it does not work a legend out from the layer.
+
+- **legend**: `layer` (required) is the id of the layer it keys; the
+  validator checks it exists. `title` is optional (a renderer may fall back
+  to the layer's `label`). Exactly one of `ramp` and `classes`, plus an
+  optional `na` entry for missing values, shown apart. Legends are shown in
+  array order, while their layer is shown; placement and styling of the key
+  are the renderer's choice and are not in the spec. A layer may have more
+  than one legend.
+- **ramp**: a continuous key from `range[0]` to `range[1]` as written (the
+  ends must differ; checked). A reversed range, `range[0]` greater than
+  `range[1]`, is a reversed key, as for a reversed layer palette. Colours are given as exactly one of
+  `stops` (at least two `{ "at", "color" }`, `at` a position from 0 at
+  `range[0]` to 1 at `range[1]`, strictly increasing, first 0 and last 1,
+  all checked; colours are interpolated linearly in RGBA between stops) or
+  `palette`, a palette name as in a layer `palette`. A palette ramp is only
+  for a layer that has a `palette`, and must name the same palette and the
+  same range (both checked); vector layers and `rgb` rasters are keyed with
+  `stops` or `classes`. Stops are positions, not values, so a ramp can key
+  a colour column computed by any function the producer used; the ends are
+  labelled with the range.
+- **classes**: discrete entries, each a `label` and a constant RGBA
+  `color`, shown in order.
+- **popup** (polygon, path and point layers only): `columns` names the
+  attribute columns of the layer's data (at least one, no repeats) whose
+  values are shown, in order, as text labelled by column name, for one
+  feature (one row) at a time. `trigger` is `select` (the default: shown
+  when the viewer selects a feature, for example by a click, tap or key
+  press, and kept until another selection or a dismissal) or `point` (shown
+  while the viewer points at a feature without selecting it; with no way to
+  point without selecting, as on touch screens, a renderer treats it as
+  `select`). A popup only shows attributes; nothing is sent back to the
+  producer (selections returning to R are a live transport concern, out of
+  scope here). Raster popups (showing a cell value) are not in 0.5.
+- **popup columns and Arrow data**: the schema cannot see the Arrow
+  tables, and the validator reads only the scene JSON (blobs are transport
+  keys, and reading Arrow would add a dependency), so it checks only that
+  `columns` does not name the layer's geometry column. Producers must write
+  every named column into the layer's data; a renderer that finds one
+  missing reports an error for that layer's popup rather than showing a
+  partial one.
+- **one tightening**: in 0.5 a layer `palette.range` or `rgb.range` with
+  equal ends is rejected (allboa/scenespec#6 point 4). Such a range divides
+  by zero, so no drawable 0.4 scene is affected. 0.1 to 0.4 are unchanged.
+
+`conformance/polar-probe-legends-popups.json` is the 0.4 bounds probe as a
+0.5 scene with a palette ramp legend for the SST field, a one-class legend
+for land, and a `select` popup on land showing Natural Earth's `featurecla`
+and `scalerank`; a producer drawing it must carry those two columns in the
+land table.
+
 ## Validate
 
 
@@ -296,7 +384,13 @@ For 0.3 it also checks that `rgb` bands and `alpha` exist in every level
 and are interleaved, that `rgb` layers give no `encoding.band`, that
 non-`uint8` samples come with `rgb.range`, and that `jpeg` levels are
 `uint8`, interleaved, unpredicted and have 1 or 3 samples (`jpeg_tables`
-is only for `jpeg`).
+is only for `jpeg`). For 0.5 it also checks that each legend names an
+existing layer, that ramp ranges have differing ends, that stops start at 0,
+end at 1 and increase, that a palette ramp keys a layer with a palette
+and matches it,
+that popups do not name the geometry column, and that palette and rgb
+ranges do not have equal ends. It does not read Arrow data, so it cannot
+check that popup columns exist.
 
 ## Open questions
 
@@ -328,7 +422,11 @@ post.
   would need a second range); `rgb` for plain `raster` layers; `planar`
   `separate` RGB (three byte ranges per tile); and per-band ranges for
   non-`uint8` imagery. 0.3 gives one `range` for all bands.
-- **Not in 0.1:** legends, popups and picking, per-layer opacity, and
+- **Legends and popups (0.5).** Open: tick labels or breaks inside a ramp
+  (0.5 labels only the ends), display names and number formats for popup
+  columns (0.5 shows column names and plain text), raster cell popups, and
+  whether `trigger` needs a third value for both.
+- **Not in 0.1:** legends and popups (added in 0.5), per-layer opacity, and
   extension points for renderer-specific hints. The schema is closed
   (`additionalProperties: false`) so renderer props cannot leak in.
 
