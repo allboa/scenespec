@@ -9,7 +9,7 @@
   "data": {
     "sst_chunks": {
       "format": "chunks",
-      "url": "polar_3031.tif",
+      "url": "polar_3031_gdal3.13.tif",
       "grid": {
         "crs": "EPSG:3031",
         "geotransform": [-6400000, 5000, 0, 6400000, 0, -5000],

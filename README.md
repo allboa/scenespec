@@ -436,14 +436,28 @@ value is raw * `scale` + `offset`. Nothing else about the store is needed.
   `tables`, base64 JPEG tables as in 0.3's `jpeg_tables`; `jpeg` is the whole
   chain, with `dtype` `uint8`, `interleave` `pixel` and 1 or 3 bands). Bytes
   to bytes codecs follow: `predictor` (configuration `type`, `horizontal` or
-  `floating_point`, directly after `bytes`), `deflate` (a zlib stream),
-  `gzip`, `zstd`, `lzw` and `blosc` (whose frame header says how it was
-  written; its configuration `cname`, `clevel`, `shuffle`, `typesize`,
-  `blocksize` is for the record). Unknown codecs and unknown configuration
-  keys are rejected. 0.2's tile `encoding` maps across directly: codec
-  `deflate` with predictor `horizontal` is
-  `[bytes, predictor horizontal, deflate]`. A Zarr v2 `zlib` compressor is
-  `deflate`.
+  `floating_point`, directly after `bytes`; defined below), `deflate` (a
+  zlib stream: RFC 1950 header, deflate data, Adler-32 check), `gzip` (RFC
+  1952), `zstd` (a Zstandard frame), `lzw` (defined below) and `blosc` (a
+  Blosc (v1) compressed buffer, whose header says how it was written; its
+  configuration `cname`, `clevel`, `shuffle`, `typesize`, `blocksize` is
+  for the record). Unknown codecs and unknown configuration keys are
+  rejected. 0.2's tile `encoding` maps across directly: codec `deflate`
+  with predictor `horizontal` is `[bytes, predictor horizontal, deflate]`.
+  A Zarr v2 `zlib` compressor is `deflate`.
+- **predictors**: both work within each chunk row, taken over one band for
+  `plane` or `separate` and over all bands for `pixel`, and both use a
+  stride n, which is `bands` for `pixel` interleave and 1 otherwise (this
+  is TIFF's per-sample differencing with a stride of samples per pixel).
+  `horizontal`: every sample from the (n+1)-th on is stored as the
+  difference from the sample n positions before it, in the sample type,
+  wrapping. `floating_point`: the bytes of the row's samples are split
+  into planes, most significant byte first, and every byte from the
+  (n+1)-th on is stored as the difference from the byte n positions before
+  it; undoing it gives the samples in the `bytes` codec's endian.
+- **lzw**: TIFF LZW: 8-bit symbols, codes of 9 to 12 bits packed most
+  significant bit first, Clear code 256 and EndOfInformation code 257, and
+  the code width growing one code early (early change).
 - **dtype, bands and interleave**: `dtype` is one of 0.2's sample types.
   With more than one band, `interleave` is `pixel` (a chunk holds every
   band, the samples of one cell together), `plane` (a chunk holds every
@@ -477,7 +491,7 @@ value is raw * `scale` + `offset`. Nothing else about the store is needed.
 
 The conformance scene `polar-cog-chunks.json` is `polar-cog-tiles.json`
 re-expressed as chunks: the same grid (levels 1 to 4 by `scale`), the
-codec chain `[bytes little, deflate]`, a refs table of every one of the
+codec chain `[bytes little, deflate]`, inline refs for every one of the
 139 tiles in the five levels, and the same plan of 22 tiles with their
 footprints and mesh counts. The spike's COG is not committed anywhere, so
 its byte ranges were read from a copy regenerated with the spike's
@@ -487,7 +501,10 @@ Decoding two refs (level 0 col 4 row 4, and level 4) by the rule above
 gave exactly GDAL's read of the same pixels. The 22 tiles also in
 `polar-cog-tiles.json` have identical lengths there, at offsets exactly 120
 bytes later, because the newer GDAL writes a longer header; the refs are
-the regenerated file's. That COG is not in this repo either.
+the regenerated file's, so the scene names it `polar_3031_gdal3.13.tif`
+(19116675 bytes, sha256
+`6effb60995674bfc4f9a0b3ffd41697bdd547545674086d79fb3645032ad1349`) rather
+than the spike's `polar_3031.tif`. That COG is not in this repo either.
 
 The conformance scene `zarr-v2-chunks.json` is a Zarr v2 array as chunks,
 with its store in `conformance/tiny.zarr/`: 24 x 20 float32 cells of 100 km
@@ -499,7 +516,9 @@ length. The store was written by hand (a `.zarray` and zlib-compressed
 chunk files, no Zarr library), and GDAL's Zarr driver reads it.
 `npm test` decodes every ref whose bytes are in the repo
 (`scripts/check-refs.js`). The chunk files are compressed bytes, the only
-non-text files in the repo, so CI's ASCII check skips `tiny.zarr`.
+non-text files in the repo, so CI's ASCII check drops exactly the paths
+`conformance/tiny.zarr/<row>.<col>` from its results; every other file,
+the store's `.zarray` and `.zattrs` included, is still checked.
 
 ## Validate
 
@@ -538,14 +557,18 @@ check that popup columns exist. For 0.6 it also checks that a codec chain
 starts with its array to bytes codec, that `predictor` comes directly
 after `bytes` (and `floating_point` only for float samples), that `jpeg`
 chains are alone, `uint8`, `pixel` and 1 or 3 bands, that grid level
-numbers are unique, that each inline ref is on its level's chunk grid, is
+numbers are unique, that each coarser level fits level 0 (dx and dy with
+level 0's signs, and each edge of its extent within one of its own cells
+of level 0's), that each inline ref is on its level's chunk grid, is
 unique, has a URL and gives `band` exactly when bands are `separate`, that
 a refs `table` is a plain Arrow table, that a plan over chunks has no
 level grids or encodings, names source levels and chunks on their grid and
 has a ref for every chunk it draws, and that a layer's `band` and `rgb`
 bands exist in the source. `scripts/check-refs.js` then decodes the inline
 refs of conformance scenes whose bytes are local files (codecs `deflate`
-and `gzip`) and checks each gives a full chunk.
+and `gzip`) and checks each gives a full chunk; it counts apart the refs
+it skips because their bytes are not in the repo and those it skips
+because it does not undo their codec chain.
 
 ## Open questions
 

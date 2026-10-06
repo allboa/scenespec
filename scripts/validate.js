@@ -213,9 +213,24 @@ function chunksErrors(where, ref, needTable, errors) {
   }
   const levels = chunkLevels(ref);
   const seenLevels = new Set();
+  const g0 = ref.grid.geotransform;
+  const span0 = gridSpan(g0, ref.grid.dim);
   (ref.grid.levels || []).forEach((lv, j) => {
-    if (seenLevels.has(lv.level)) errors.push(`${where}/grid/levels/${j}: duplicate level ${lv.level}`);
+    const lw = `${where}/grid/levels/${j}`;
+    if (seenLevels.has(lv.level)) errors.push(`${lw}: duplicate level ${lv.level}`);
     seenLevels.add(lv.level);
+    // A coarser level covers level 0: same orientation, and each edge
+    // within one of its own cells of level 0's.
+    const g = lv.geotransform || [g0[0], g0[1] * lv.scale[0], 0, g0[3], 0, g0[5] * lv.scale[1]];
+    if (Math.sign(g[1]) !== Math.sign(g0[1]) || Math.sign(g[5]) !== Math.sign(g0[5])) {
+      errors.push(`${lw}: dx and dy must have the signs of level 0's`);
+      return;
+    }
+    const span = gridSpan(g, lv.dim);
+    const tol = [Math.abs(g[1]), Math.abs(g[1]), Math.abs(g[5]), Math.abs(g[5])];
+    if (span.some((v, k) => Math.abs(v - span0[k]) > tol[k] * (1 + 1e-9))) {
+      errors.push(`${lw}: extent [${span.join(", ")}] does not match level 0's [${span0.join(", ")}] within one cell`);
+    }
   });
   if (ref.refs.table !== undefined) needTable(`${where}/refs/table`, ref.refs.table);
   const seen = new Set();
@@ -244,6 +259,13 @@ function chunksErrors(where, ref, needTable, errors) {
 }
 
 const ARRAY_TO_BYTES = ["bytes", "jpeg"];
+
+// [xmin, xmax, ymin, ymax] of a north-up or bottom-up grid.
+function gridSpan(g, dim) {
+  const x1 = g[0] + dim[0] * g[1];
+  const y1 = g[3] + dim[1] * g[5];
+  return [Math.min(g[0], x1), Math.max(g[0], x1), Math.min(g[3], y1), Math.max(g[3], y1)];
+}
 
 const chunkKey = (level, col, row, band) => `${level}/${col}/${row}${band === undefined ? "" : `/${band}`}`;
 

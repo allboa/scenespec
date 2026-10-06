@@ -4,7 +4,8 @@
 // local file next to the scene, read bytes [offset, offset + length),
 // undo the codec chain in reverse and check that a full chunk comes out
 // (chunk width * height * bands * sample size bytes). Refs whose files are
-// not in the repo, and codecs Node cannot undo, are counted as skipped.
+// not in the repo, and refs whose codec chain this script does not undo
+// (anything but bytes then deflate or gzip), are skipped and counted apart.
 "use strict";
 
 const fs = require("fs");
@@ -17,7 +18,7 @@ const UNDO = { deflate: zlib.inflateSync, gzip: zlib.gunzipSync };
 
 function checkScene(file) {
   const scene = JSON.parse(fs.readFileSync(file, "utf8"));
-  const res = { ok: 0, skipped: 0, failed: [] };
+  const res = { ok: 0, notLocal: 0, codec: 0, failed: [] };
   for (const [id, ref] of Object.entries(scene.data || {})) {
     if (ref.format !== "chunks" || !ref.refs.rows) continue;
     const names = ref.codecs.map((c) => c.name);
@@ -26,8 +27,12 @@ function checkScene(file) {
     ref.refs.rows.forEach((r, k) => {
       const url = r.url || ref.url;
       const local = /^[a-z][a-z0-9+.-]*:/i.test(url) ? null : path.resolve(path.dirname(file), url);
-      if (!local || !fs.existsSync(local) || names[0] !== "bytes" || !names.slice(1).every((n) => UNDO[n])) {
-        res.skipped++;
+      if (!local || !fs.existsSync(local)) {
+        res.notLocal++;
+        return;
+      }
+      if (names[0] !== "bytes" || !names.slice(1).every((n) => UNDO[n])) {
+        res.codec++;
         return;
       }
       const fd = fs.openSync(local, "r");
@@ -60,14 +65,15 @@ function main() {
   let bad = 0;
   for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
     const r = checkScene(path.join(dir, f));
-    if (r.ok + r.skipped + r.failed.length === 0) continue;
+    if (r.ok + r.notLocal + r.codec + r.failed.length === 0) continue;
     if (r.failed.length) {
       bad++;
       console.log(`FAIL conformance/${f}`);
       r.failed.forEach((e) => console.log(`       ${e}`));
     } else {
-      const skipped = r.skipped ? `, ${r.skipped} skipped (bytes not in the repo)` : "";
-      console.log(`ok   conformance/${f}: ${r.ok} refs decoded${skipped}`);
+      const notLocal = r.notLocal ? `, ${r.notLocal} skipped (bytes not in the repo)` : "";
+      const codec = r.codec ? `, ${r.codec} skipped (codec chain not decoded by this script)` : "";
+      console.log(`ok   conformance/${f}: ${r.ok} refs decoded${notLocal}${codec}`);
     }
   }
   process.exit(bad ? 1 : 0);
