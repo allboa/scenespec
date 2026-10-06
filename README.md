@@ -23,9 +23,12 @@ Agents and humans working here follow the org brief:
 | `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image. `polar-probe-bounds.json` (0.4) is the probe with `view.bounds`. `polar-probe-legends-popups.json` (0.5) adds legends and a land popup. `polar-cog-chunks.json` (0.6) is the tiled COG as chunk references, and `zarr-v2-chunks.json` (0.6) a small Zarr v2 array (the store is `tiny.zarr/`) as chunk references |
 | `fixtures/valid/` | Minimal scenes that must validate |
 | `fixtures/invalid/` | Scenes that must fail, one reason each |
+| `fixtures/data/` | Explicit-data fixtures: one Arrow IPC stream per GeoArrow geometry kind (drawn by `fixtures/valid/explicit-data-0.6.json`), and in `invalid/` streams and scenes whose data breaks the contract for one reason each |
 | `scripts/validate.js` | Schema validation (ajv, schema chosen by the scene's `version`) plus cross-reference checks |
 | `scripts/check-terms.js` | Fails if any renderer term from a denylist appears in the schema, or (0.6) a file format name in the chunk-reference definitions |
 | `scripts/check-refs.js` | Decodes the chunk refs of conformance scenes whose bytes are in the repo (0.6) |
+| `scripts/check-data.js` | Reads the vector data whose bytes are in the repo (apache-arrow) and checks it against the explicit-data contract |
+| `scripts/make-data.R` | Writes the Arrow fixtures in `fixtures/data/` (nanoarrow, geoarrow, wk) |
 
 ## A scene in brief
 
@@ -58,7 +61,8 @@ Agents and humans working here follow the org brief:
 - **data**: references keyed by id. Each is Arrow IPC (`arrow-ipc-stream` or
   `arrow-ipc-file`) held as exactly one of a transport `blob` key or a `url`.
   Vector tables declare their `geometry` column with a native GeoArrow
-  encoding; WKB and WKT are not allowed. In 0.1 vector coordinates are in
+  encoding; WKB and WKT are not allowed (what the Arrow bytes hold is under
+  "Explicit data" below). In 0.1 vector coordinates are in
   the view CRS: if `geometry.crs` is given it must equal `view.crs` exactly
   (compared as JSON values). `origin_subtracted: true` requires
   `view.local_origin`.
@@ -76,6 +80,108 @@ Agents and humans working here follow the org brief:
   tables are plain tables and must not declare a geometry column. `nodata`
   is a number, or the string `"NaN"` to say NaN cells mean no data (JSON has
   no NaN literal); Arrow nulls always mean no data.
+
+## Explicit data: Arrow with GeoArrow geometry
+
+This section holds for every version, 0.1 to 0.6. The scene JSON names a
+vector table (`format`, `blob` or `url`, `geometry.column`,
+`geometry.encoding` and an optional `geometry.crs`); this is what the Arrow
+bytes behind it must hold, so that any producer (DuckDB, a Python writer,
+rangefinder) can write a scene that any reader draws, without sharing code
+(allboa/scenespec#11, from allboa/design decision 0011). Nothing in the
+scene JSON changes, so there is no new version: the encoding is already
+declared in the scene, and the coordinate layout and the CRS travel in the
+Arrow schema, where a reader finds them.
+
+- **One table per data reference**: an Arrow IPC stream
+  (`arrow-ipc-stream`) or file (`arrow-ipc-file`), as declared, with zero or
+  more record batches of one schema (an empty table may have none).
+- **Geometry**: the column named by `geometry.column` has a native GeoArrow
+  extension type: its field metadata `ARROW:extension:name` is one of
+  `geoarrow.point`, `geoarrow.linestring`, `geoarrow.polygon`,
+  `geoarrow.multipoint`, `geoarrow.multilinestring` and
+  `geoarrow.multipolygon`, and equals `geometry.encoding`. Serialised
+  geometry (`geoarrow.wkb`, `geoarrow.wkt`, `ogc.wkb` and their large and
+  view forms) is never used: the producer converts it before the data
+  leave. Only the named column is the layer's geometry; other columns are
+  not drawn.
+- **Storage**, as GeoArrow lays it out: a point is a coordinate; a
+  linestring or a multipoint is a List of coordinates; a polygon (a List of
+  rings) or a multilinestring is a List of Lists; a multipolygon is three
+  Lists deep. Lists have 32-bit offsets (List, not LargeList). Coordinates
+  are doubles, either **interleaved**, a FixedSizeList whose child field is
+  named `xy` (2 values) or `xyz` (3), or **separated**, a Struct of fields
+  `x`, `y` and optionally `z`. Either layout may be used in any table, and
+  a reader accepts both. Rings are closed, and the first ring of a polygon
+  is its outer ring and the rest are holes. A flat view draws x and y; z is
+  carried and may be ignored.
+- **CRS**: `ARROW:extension:metadata` is a JSON object whose `crs` is a
+  PROJJSON object (what geoarrow writes) or an `authority:code` string.
+  `crs_type`, if given, is `projjson` or `authority_code` (WKT and SRID
+  forms are not used: a reader without PROJ could not match them), and
+  `edges`, if given, is `planar`. `crs_type` fits the form of `crs`:
+  `projjson` with an object, `authority_code` with a string. Coordinates are in the view CRS: the
+  producer transforms them before writing and writes the view's CRS. Two
+  CRSs match when they are equal as JSON values (ignoring key order and
+  PROJJSON's `$schema`), or when one authority code names both (the string
+  itself, or a PROJJSON object's top-level `id` or `ids`; authority codes
+  compare case-insensitively), so a `view.crs` of `"EPSG:3031"` matches the
+  PROJJSON for EPSG:3031. `crs` is required when the view has a CRS, and
+  may be left out for a `cartesian` view without one. The scene's optional
+  `geometry.crs`, when given, matches the Arrow `crs` by the same rule. A reader does not reproject; one that compares and finds a
+  mismatch reports an error for the layer and does not draw it.
+- **Columns a layer names**: a popup column is an attribute, and a colour
+  column, named by a layer's `fill` or `stroke`, is
+  `FixedSizeList<uint8, 4>`. Attribute types are those a popup shows as
+  text: boolean, signed and
+  unsigned integers (8 to 64 bits), float32, float64, string (Utf8 and
+  LargeUtf8), date (Date32 and Date64) and timestamp (any unit, with or
+  without a time zone); nulls are missing values. A dictionary column is not
+  an attribute: a factor or category a popup shows is written as strings,
+  and a legend that lists categories in order is written from them as data
+  (0.5). Legends read no columns. Columns no layer names may have any Arrow
+  type (a duration, a time of day, binary, a list) and readers ignore them,
+  so a producer need not drop them.
+- **Out of scope**: geometry collections (`geoarrow.geometrycollection`),
+  mixed kinds in one column (`geoarrow.geometry`), M coordinates (`xym` and
+  `xyzm`), boxes (`geoarrow.box`), curves and non-planar edges. A producer
+  splits mixed kinds into one table per kind, explodes collections and
+  drops M.
+- **Unknown extension types**: when the geometry column's extension name is
+  not one of the six above (WKB, an out of scope type, or one the reader
+  does not know), the reader reports an error for each layer that draws the
+  table and draws nothing from it; it does not guess from the storage.
+  Other layers draw as usual. Any other column with an extension type the
+  reader does not know is read as its storage type, as Arrow readers do.
+
+aobcore's producers (`vector_stream()`, `vector_ipc()` and
+`gdal_vector_stream()`) write interleaved xy coordinates and a PROJJSON CRS
+(geoarrow resolves `"EPSG:3031"` to PROJJSON from wk's bundled table).
+Separated coordinates, an `authority:code` CRS and z are allowed for other
+producers.
+
+`fixtures/data/` holds one Arrow IPC stream per geometry kind, each with
+two or three features in EPSG:3031 and a few attribute columns: `point`,
+`linestring` and `polygon` are interleaved (aobcore's form; `point` also
+has a date and a colour column), and `multipoint`, `multilinestring` and
+`multipolygon` are separated (`multipoint` gives its CRS as
+`{"crs": "EPSG:3031", "crs_type": "authority_code"}`; between them they
+have int64, boolean and timestamp attributes).
+`fixtures/valid/explicit-data-0.6.json` draws all six, with popups (the
+polygon reference also gives `geometry.crs`). `fixtures/data/invalid/`
+holds valid scenes whose data break the contract for one reason each: WKB
+geometry, no CRS, a CRS that is not the view's, a `crs_type` that does not
+fit the `crs`, a geometry collection, M coordinates, storage that does not
+match the extension, a binary column named in a popup, an encoding the
+scene does not declare, a missing popup column and a colour column that is
+not RGBA. `scripts/make-data.R` writes the streams with the calls aobcore
+makes (nanoarrow, geoarrow and wk); `scripts/check-data.js` reads them with
+apache-arrow (the version aobcore's renderer bundles) and checks the rules
+above on extension names, metadata, storage types, CRS and named columns
+(not coordinate values, such as closed rings). The streams are binary, so
+CI's ASCII check drops exactly `fixtures/data/*.arrows` and
+`fixtures/data/invalid/*.arrows` from its results; the scenes beside them
+are still checked.
 
 ## 0.2: tiled COG rasters
 
@@ -344,8 +450,9 @@ The renderer draws it; it does not work a legend out from the layer.
   scope here). Raster popups (showing a cell value) are not in 0.5.
 - **popup columns and Arrow data**: the schema cannot see the Arrow
   tables, and the validator reads only the scene JSON (blobs are transport
-  keys, and reading Arrow would add a dependency), so it checks only that
-  `columns` does not name the layer's geometry column. Producers must write
+  keys), so it checks only that `columns` does not name the layer's
+  geometry column. `scripts/check-data.js` checks the popup columns of data
+  whose bytes are in the repo (see "Explicit data"). Producers must write
   every named column into the layer's data; a renderer that finds one
   missing reports an error for that layer's popup rather than showing a
   partial one.
@@ -515,8 +622,8 @@ no plan tile. Each ref is a whole chunk file: offset 0 and the file's
 length. The store was written by hand (a `.zarray` and zlib-compressed
 chunk files, no Zarr library), and GDAL's Zarr driver reads it.
 `npm test` decodes every ref whose bytes are in the repo
-(`scripts/check-refs.js`). The chunk files are compressed bytes, the only
-non-text files in the repo, so CI's ASCII check drops exactly the paths
+(`scripts/check-refs.js`). The chunk files are compressed bytes, so CI's ASCII
+check drops exactly the paths
 `conformance/tiny.zarr/<row>.<col>` from its results; every other file,
 the store's `.zarray` and `.zattrs` included, is still checked.
 
@@ -525,7 +632,7 @@ the store's `.zarray` and `.zattrs` included, is still checked.
 
 ```sh
 npm ci
-npm test                              # denylist check + every fixture + local chunk refs
+npm test                              # denylist check + every fixture + local chunk refs + local vector data
 node scripts/validate.js my-scene.json   # validate your own scenes
 ```
 
@@ -553,7 +660,8 @@ end at 1 and increase, that a palette ramp keys a layer with a palette
 and matches it,
 that popups do not name the geometry column, and that palette and rgb
 ranges do not have equal ends. It does not read Arrow data, so it cannot
-check that popup columns exist. For 0.6 it also checks that a codec chain
+check that popup columns exist; `scripts/check-data.js` does, for data in
+the repo. For 0.6 it also checks that a codec chain
 starts with its array to bytes codec, that `predictor` comes directly
 after `bytes` (and `floating_point` only for float samples), that `jpeg`
 chains are alone, `uint8`, `pixel` and 1 or 3 bands, that grid level
@@ -568,7 +676,15 @@ bands exist in the source. `scripts/check-refs.js` then decodes the inline
 refs of conformance scenes whose bytes are local files (codecs `deflate`
 and `gzip`) and checks each gives a full chunk; it counts apart the refs
 it skips because their bytes are not in the repo and those it skips
-because it does not undo their codec chain.
+because it does not undo their codec chain. `scripts/check-data.js` reads
+each vector table whose bytes are in the repo, for conformance scenes and
+`fixtures/valid/` (which must pass) and `fixtures/data/invalid/` (valid
+scenes whose data must fail for exactly one reason), and checks it against
+the explicit-data contract: the IPC format, the geometry extension name
+and storage, the CRS against `view.crs` and `geometry.crs`, and the
+columns its layers name (popup columns are attributes, colour columns
+RGBA). It also fails if a file in
+`fixtures/data/` is not read by any scene.
 
 ## Open questions
 
@@ -594,7 +710,12 @@ post.
   both a map projection and a renderer view class.
 - **Vector CRS.** Vector coordinates must be in the view CRS in 0.1; the
   optional `geometry.crs` records this and leaves room for renderer-side
-  reprojection.
+  reprojection. The Arrow geometry column carries the same CRS in its
+  extension metadata ("Explicit data").
+- **Explicit data.** Open: LargeList offsets and string views for very
+  large tables; an `arrow-ipc-file` fixture (nanoarrow writes streams only);
+  null geometries, which the contract does not yet say how to draw; and
+  display formats for attribute values, which wait on popup formats (0.5).
 - **Colour images (0.3).** Open: a mask image for JPEG COGs (TIFF
   internal masks are separate tiles with their own byte ranges, so a tile
   would need a second range); `rgb` for plain `raster` layers; `planar`
