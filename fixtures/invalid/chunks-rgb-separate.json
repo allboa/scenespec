@@ -1,0 +1,68 @@
+{
+  "version": "0.6",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "extent": [-1000000, 1000000, -1000000, 1000000]
+  },
+  "data": {
+    "photo": {
+      "format": "chunks",
+      "url": "https://example.org/mosaic/photo.bin",
+      "grid": {
+        "crs": "EPSG:3031",
+        "geotransform": [-1000000, 10, 0, 1000000, 0, -10],
+        "dim": [200000, 200000],
+        "chunk_size": [1024, 1024]
+      },
+      "dtype": "uint8",
+      "bands": 3,
+      "interleave": "separate",
+      "codecs": [
+        { "name": "bytes" },
+        {
+          "name": "blosc",
+          "configuration": { "cname": "zstd", "clevel": 5, "shuffle": "shuffle", "typesize": 1, "blocksize": 0 }
+        }
+      ],
+      "refs": { "table": "photo_refs" }
+    },
+    "photo_refs": { "format": "arrow-ipc-file", "url": "photo_refs.arrow" },
+    "v": { "format": "arrow-ipc-stream", "blob": "v" },
+    "i": { "format": "arrow-ipc-stream", "blob": "i" }
+  },
+  "layers": [
+    {
+      "id": "photo",
+      "kind": "tiled_raster",
+      "label": "Aerial mosaic",
+      "source": "photo",
+      "rgb": {
+        "bands": [1, 2, 3]
+      },
+      "plan": {
+        "crs": "EPSG:3031",
+        "coverage": "view",
+        "planned_for": {
+          "extent": [-1000000, -989760, 989760, 1000000],
+          "units_per_pixel": 10
+        },
+        "mesh": { "vertices": "v", "indices": "i" },
+        "levels": [
+          {
+            "level": 0,
+            "pixel_size": 10,
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "footprint": [-1000000, -989760, 989760, 1000000],
+                "mesh": { "first_vertex": 0, "vertex_count": 4, "first_index": 0, "index_count": 6 }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

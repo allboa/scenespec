@@ -1,0 +1,65 @@
+{
+  "version": "0.6",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "extent": [-1000000, 1000000, -1000000, 1000000]
+  },
+  "data": {
+    "wind": {
+      "format": "chunks",
+      "url": "https://example.org/wind/uv.bin",
+      "grid": {
+        "crs": "EPSG:3031",
+        "geotransform": [-1000000, 25000, 0, -1000000, 0, 25000],
+        "dim": [80, 80],
+        "chunk_size": [40, 40]
+      },
+      "dtype": "float32",
+      "bands": 1,
+      "codecs": [
+        { "name": "jpeg" }
+      ],
+      "nodata": "NaN",
+      "refs": {
+        "rows": [
+          { "col": 0, "row": 0, "offset": 0, "length": 4410 }
+        ]
+      }
+    },
+    "v": { "format": "arrow-ipc-stream", "blob": "v" },
+    "i": { "format": "arrow-ipc-stream", "blob": "i" }
+  },
+  "layers": [
+    {
+      "id": "v_wind",
+      "kind": "tiled_raster",
+      "label": "Northward wind (m/s)",
+      "source": "wind",
+      "palette": {
+        "name": "diverging",
+        "range": [-20, 20]
+      },
+      "plan": {
+        "crs": "EPSG:3031",
+        "coverage": "all_levels",
+        "selection": { "rule": "nearest_pixel_size" },
+        "mesh": { "vertices": "v", "indices": "i" },
+        "levels": [
+          {
+            "level": 0,
+            "pixel_size": 25000,
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "footprint": [-1000000, 0, -1000000, 0],
+                "mesh": { "first_vertex": 0, "vertex_count": 4, "first_index": 0, "index_count": 6 }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

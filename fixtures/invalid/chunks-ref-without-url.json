@@ -1,0 +1,111 @@
+{
+  "version": "0.6",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "extent": [-1000000, 1000000, -1000000, 1000000]
+  },
+  "data": {
+    "elev": {
+      "format": "chunks",
+      "grid": {
+        "crs": "EPSG:3031",
+        "geotransform": [-1000000, 1000, 0, 1000000, 0, -1000],
+        "dim": [2000, 2000],
+        "chunk_size": [512, 512],
+        "levels": [
+          {
+            "level": 1,
+            "dim": [1000, 1000],
+            "scale": [2, 2]
+          },
+          {
+            "level": 2,
+            "dim": [500, 500],
+            "geotransform": [-1000000, 4000, 0, 1000000, 0, -4000],
+            "chunk_size": [256, 256]
+          }
+        ]
+      },
+      "dtype": "int16",
+      "codecs": [
+        {
+          "name": "bytes",
+          "configuration": { "endian": "little" }
+        },
+        {
+          "name": "predictor",
+          "configuration": { "type": "horizontal" }
+        },
+        {
+          "name": "zstd",
+          "configuration": { "level": 3 }
+        }
+      ],
+      "nodata": -32768,
+      "scale": 0.1,
+      "refs": {
+        "rows": [
+          { "level": 0, "col": 0, "row": 0, "offset": 0, "length": 301133 },
+          { "level": 0, "col": 3, "row": 3, "offset": 301133, "length": 99012 },
+          { "level": 2, "col": 0, "row": 0, "url": "https://example.org/elevation/level2.bin", "offset": 0, "length": 61200 },
+          { "level": 2, "col": 1, "row": 0, "url": "https://example.org/elevation/level2.bin", "offset": 61200, "length": 40333 },
+          { "level": 2, "col": 0, "row": 1, "url": "https://example.org/elevation/level2.bin", "offset": 101533, "length": 39871 },
+          { "level": 2, "col": 1, "row": 1, "url": "https://example.org/elevation/level2.bin", "offset": 141404, "length": 20977 }
+        ]
+      }
+    },
+    "v": { "format": "arrow-ipc-stream", "blob": "v" },
+    "i": { "format": "arrow-ipc-stream", "blob": "i" }
+  },
+  "layers": [
+    {
+      "id": "elev",
+      "kind": "tiled_raster",
+      "label": "Elevation (m)",
+      "source": "elev",
+      "palette": {
+        "name": "terrain",
+        "range": [0, 4000]
+      },
+      "plan": {
+        "crs": "EPSG:3031",
+        "coverage": "all_levels",
+        "selection": { "rule": "coarsest_sufficient" },
+        "mesh": { "vertices": "v", "indices": "i" },
+        "levels": [
+          {
+            "level": 2,
+            "pixel_size": 4000,
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "footprint": [-1000000, 24000, -24000, 1000000],
+                "mesh": { "first_vertex": 0, "vertex_count": 4, "first_index": 0, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 0,
+                "footprint": [24000, 1000000, -24000, 1000000],
+                "mesh": { "first_vertex": 4, "vertex_count": 4, "first_index": 6, "index_count": 6 }
+              },
+              {
+                "col": 0,
+                "row": 1,
+                "footprint": [-1000000, 24000, -1000000, -24000],
+                "mesh": { "first_vertex": 8, "vertex_count": 4, "first_index": 12, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 1,
+                "footprint": [24000, 1000000, -1000000, -24000],
+                "mesh": { "first_vertex": 12, "vertex_count": 4, "first_index": 18, "index_count": 6 }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

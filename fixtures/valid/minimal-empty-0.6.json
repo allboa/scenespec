@@ -1,0 +1,11 @@
+{
+  "version": "0.6",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "extent": [-1000000, 1000000, -1000000, 1000000]
+  },
+  "data": {},
+  "layers": [],
+  "legends": []
+}

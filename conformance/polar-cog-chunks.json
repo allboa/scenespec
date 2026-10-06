@@ -1,0 +1,379 @@
+{
+  "version": "0.6",
+  "view": {
+    "type": "projected",
+    "crs": "EPSG:3031",
+    "center": [0, 0],
+    "extent": [-6400000, 6400000, -6400000, 6400000]
+  },
+  "data": {
+    "sst_chunks": {
+      "format": "chunks",
+      "url": "polar_3031_gdal3.13.tif",
+      "grid": {
+        "crs": "EPSG:3031",
+        "geotransform": [-6400000, 5000, 0, 6400000, 0, -5000],
+        "dim": [2560, 2560],
+        "chunk_size": [256, 256],
+        "levels": [
+          {
+            "level": 1,
+            "dim": [1280, 1280],
+            "scale": [2, 2]
+          },
+          {
+            "level": 2,
+            "dim": [640, 640],
+            "scale": [4, 4]
+          },
+          {
+            "level": 3,
+            "dim": [320, 320],
+            "scale": [8, 8]
+          },
+          {
+            "level": 4,
+            "dim": [160, 160],
+            "scale": [16, 16]
+          }
+        ]
+      },
+      "dtype": "float32",
+      "codecs": [
+        {
+          "name": "bytes",
+          "configuration": { "endian": "little" }
+        },
+        { "name": "deflate" }
+      ],
+      "nodata": -9999,
+      "refs": {
+        "rows": [
+          { "level": 0, "col": 0, "row": 0, "offset": 4883929, "length": 283 },
+          { "level": 0, "col": 1, "row": 0, "offset": 4884220, "length": 283 },
+          { "level": 0, "col": 2, "row": 0, "offset": 4884511, "length": 1140 },
+          { "level": 0, "col": 3, "row": 0, "offset": 4885659, "length": 54587 },
+          { "level": 0, "col": 4, "row": 0, "offset": 4940254, "length": 98757 },
+          { "level": 0, "col": 5, "row": 0, "offset": 5039019, "length": 96858 },
+          { "level": 0, "col": 6, "row": 0, "offset": 5135885, "length": 55227 },
+          { "level": 0, "col": 7, "row": 0, "offset": 5191120, "length": 1121 },
+          { "level": 0, "col": 8, "row": 0, "offset": 5192249, "length": 283 },
+          { "level": 0, "col": 9, "row": 0, "offset": 5192540, "length": 283 },
+          { "level": 0, "col": 0, "row": 1, "offset": 5192831, "length": 283 },
+          { "level": 0, "col": 1, "row": 1, "offset": 5193122, "length": 16560 },
+          { "level": 0, "col": 2, "row": 1, "offset": 5209690, "length": 162329 },
+          { "level": 0, "col": 3, "row": 1, "offset": 5372027, "length": 213033 },
+          { "level": 0, "col": 4, "row": 1, "offset": 5585068, "length": 210068 },
+          { "level": 0, "col": 5, "row": 1, "offset": 5795144, "length": 201486 },
+          { "level": 0, "col": 6, "row": 1, "offset": 5996638, "length": 219829 },
+          { "level": 0, "col": 7, "row": 1, "offset": 6216475, "length": 164277 },
+          { "level": 0, "col": 8, "row": 1, "offset": 6380760, "length": 17187 },
+          { "level": 0, "col": 9, "row": 1, "offset": 6397955, "length": 283 },
+          { "level": 0, "col": 0, "row": 2, "offset": 6398246, "length": 1141 },
+          { "level": 0, "col": 1, "row": 2, "offset": 6399395, "length": 163652 },
+          { "level": 0, "col": 2, "row": 2, "offset": 6563055, "length": 220018 },
+          { "level": 0, "col": 3, "row": 2, "offset": 6783081, "length": 215899 },
+          { "level": 0, "col": 4, "row": 2, "offset": 6998988, "length": 215321 },
+          { "level": 0, "col": 5, "row": 2, "offset": 7214317, "length": 217221 },
+          { "level": 0, "col": 6, "row": 2, "offset": 7431546, "length": 219688 },
+          { "level": 0, "col": 7, "row": 2, "offset": 7651242, "length": 226550 },
+          { "level": 0, "col": 8, "row": 2, "offset": 7877800, "length": 163038 },
+          { "level": 0, "col": 9, "row": 2, "offset": 8040846, "length": 1117 },
+          { "level": 0, "col": 0, "row": 3, "offset": 8041971, "length": 56448 },
+          { "level": 0, "col": 1, "row": 3, "offset": 8098427, "length": 222352 },
+          { "level": 0, "col": 2, "row": 3, "offset": 8320787, "length": 222875 },
+          { "level": 0, "col": 3, "row": 3, "offset": 8543670, "length": 229272 },
+          { "level": 0, "col": 4, "row": 3, "offset": 8772950, "length": 220064 },
+          { "level": 0, "col": 5, "row": 3, "offset": 8993022, "length": 222596 },
+          { "level": 0, "col": 6, "row": 3, "offset": 9215626, "length": 224502 },
+          { "level": 0, "col": 7, "row": 3, "offset": 9440136, "length": 224509 },
+          { "level": 0, "col": 8, "row": 3, "offset": 9664653, "length": 223046 },
+          { "level": 0, "col": 9, "row": 3, "offset": 9887707, "length": 55445 },
+          { "level": 0, "col": 0, "row": 4, "offset": 9943160, "length": 106453 },
+          { "level": 0, "col": 1, "row": 4, "offset": 10049621, "length": 229154 },
+          { "level": 0, "col": 2, "row": 4, "offset": 10278783, "length": 222944 },
+          { "level": 0, "col": 3, "row": 4, "offset": 10501735, "length": 236542 },
+          { "level": 0, "col": 4, "row": 4, "offset": 10738285, "length": 233111 },
+          { "level": 0, "col": 5, "row": 4, "offset": 10971404, "length": 229870 },
+          { "level": 0, "col": 6, "row": 4, "offset": 11201282, "length": 239884 },
+          { "level": 0, "col": 7, "row": 4, "offset": 11441174, "length": 224468 },
+          { "level": 0, "col": 8, "row": 4, "offset": 11665650, "length": 224075 },
+          { "level": 0, "col": 9, "row": 4, "offset": 11889733, "length": 105247 },
+          { "level": 0, "col": 0, "row": 5, "offset": 11994988, "length": 106047 },
+          { "level": 0, "col": 1, "row": 5, "offset": 12101043, "length": 227851 },
+          { "level": 0, "col": 2, "row": 5, "offset": 12328902, "length": 221567 },
+          { "level": 0, "col": 3, "row": 5, "offset": 12550477, "length": 227549 },
+          { "level": 0, "col": 4, "row": 5, "offset": 12778034, "length": 237008 },
+          { "level": 0, "col": 5, "row": 5, "offset": 13015050, "length": 238171 },
+          { "level": 0, "col": 6, "row": 5, "offset": 13253229, "length": 230475 },
+          { "level": 0, "col": 7, "row": 5, "offset": 13483712, "length": 224020 },
+          { "level": 0, "col": 8, "row": 5, "offset": 13707740, "length": 214768 },
+          { "level": 0, "col": 9, "row": 5, "offset": 13922516, "length": 104294 },
+          { "level": 0, "col": 0, "row": 6, "offset": 14026818, "length": 56555 },
+          { "level": 0, "col": 1, "row": 6, "offset": 14083381, "length": 225118 },
+          { "level": 0, "col": 2, "row": 6, "offset": 14308507, "length": 220268 },
+          { "level": 0, "col": 3, "row": 6, "offset": 14528783, "length": 223140 },
+          { "level": 0, "col": 4, "row": 6, "offset": 14751931, "length": 238077 },
+          { "level": 0, "col": 5, "row": 6, "offset": 14990016, "length": 232716 },
+          { "level": 0, "col": 6, "row": 6, "offset": 15222740, "length": 223488 },
+          { "level": 0, "col": 7, "row": 6, "offset": 15446236, "length": 223333 },
+          { "level": 0, "col": 8, "row": 6, "offset": 15669577, "length": 219133 },
+          { "level": 0, "col": 9, "row": 6, "offset": 15888718, "length": 56301 },
+          { "level": 0, "col": 0, "row": 7, "offset": 15945027, "length": 1165 },
+          { "level": 0, "col": 1, "row": 7, "offset": 15946200, "length": 163845 },
+          { "level": 0, "col": 2, "row": 7, "offset": 16110053, "length": 217952 },
+          { "level": 0, "col": 3, "row": 7, "offset": 16328013, "length": 224323 },
+          { "level": 0, "col": 4, "row": 7, "offset": 16552344, "length": 221697 },
+          { "level": 0, "col": 5, "row": 7, "offset": 16774049, "length": 217164 },
+          { "level": 0, "col": 6, "row": 7, "offset": 16991221, "length": 219766 },
+          { "level": 0, "col": 7, "row": 7, "offset": 17210995, "length": 224928 },
+          { "level": 0, "col": 8, "row": 7, "offset": 17435931, "length": 165133 },
+          { "level": 0, "col": 9, "row": 7, "offset": 17601072, "length": 1150 },
+          { "level": 0, "col": 0, "row": 8, "offset": 17602230, "length": 283 },
+          { "level": 0, "col": 1, "row": 8, "offset": 17602521, "length": 17345 },
+          { "level": 0, "col": 2, "row": 8, "offset": 17619874, "length": 162323 },
+          { "level": 0, "col": 3, "row": 8, "offset": 17782205, "length": 215731 },
+          { "level": 0, "col": 4, "row": 8, "offset": 17997944, "length": 215434 },
+          { "level": 0, "col": 5, "row": 8, "offset": 18213386, "length": 198956 },
+          { "level": 0, "col": 6, "row": 8, "offset": 18412350, "length": 216369 },
+          { "level": 0, "col": 7, "row": 8, "offset": 18628727, "length": 164714 },
+          { "level": 0, "col": 8, "row": 8, "offset": 18793449, "length": 16993 },
+          { "level": 0, "col": 9, "row": 8, "offset": 18810450, "length": 283 },
+          { "level": 0, "col": 0, "row": 9, "offset": 18810741, "length": 283 },
+          { "level": 0, "col": 1, "row": 9, "offset": 18811032, "length": 283 },
+          { "level": 0, "col": 2, "row": 9, "offset": 18811323, "length": 1144 },
+          { "level": 0, "col": 3, "row": 9, "offset": 18812475, "length": 54730 },
+          { "level": 0, "col": 4, "row": 9, "offset": 18867213, "length": 98556 },
+          { "level": 0, "col": 5, "row": 9, "offset": 18965777, "length": 94208 },
+          { "level": 0, "col": 6, "row": 9, "offset": 19059993, "length": 54965 },
+          { "level": 0, "col": 7, "row": 9, "offset": 19114966, "length": 1123 },
+          { "level": 0, "col": 8, "row": 9, "offset": 19116097, "length": 283 },
+          { "level": 0, "col": 9, "row": 9, "offset": 19116388, "length": 283 },
+          { "level": 1, "col": 0, "row": 0, "offset": 1238501, "length": 4694 },
+          { "level": 1, "col": 1, "row": 0, "offset": 1243203, "length": 110147 },
+          { "level": 1, "col": 2, "row": 0, "offset": 1353358, "length": 161203 },
+          { "level": 1, "col": 3, "row": 0, "offset": 1514569, "length": 113420 },
+          { "level": 1, "col": 4, "row": 0, "offset": 1627997, "length": 4795 },
+          { "level": 1, "col": 0, "row": 1, "offset": 1632800, "length": 113255 },
+          { "level": 1, "col": 1, "row": 1, "offset": 1746063, "length": 226986 },
+          { "level": 1, "col": 2, "row": 1, "offset": 1973057, "length": 224673 },
+          { "level": 1, "col": 3, "row": 1, "offset": 2197738, "length": 228782 },
+          { "level": 1, "col": 4, "row": 1, "offset": 2426528, "length": 112950 },
+          { "level": 1, "col": 0, "row": 2, "offset": 2539486, "length": 171417 },
+          { "level": 1, "col": 1, "row": 2, "offset": 2710911, "length": 232028 },
+          { "level": 1, "col": 2, "row": 2, "offset": 2942947, "length": 236965 },
+          { "level": 1, "col": 3, "row": 2, "offset": 3179920, "length": 234857 },
+          { "level": 1, "col": 4, "row": 2, "offset": 3414785, "length": 166573 },
+          { "level": 1, "col": 0, "row": 3, "offset": 3581366, "length": 114678 },
+          { "level": 1, "col": 1, "row": 3, "offset": 3696052, "length": 226093 },
+          { "level": 1, "col": 2, "row": 3, "offset": 3922153, "length": 230459 },
+          { "level": 1, "col": 3, "row": 3, "offset": 4152620, "length": 226684 },
+          { "level": 1, "col": 4, "row": 3, "offset": 4379312, "length": 112229 },
+          { "level": 1, "col": 0, "row": 4, "offset": 4491549, "length": 4931 },
+          { "level": 1, "col": 1, "row": 4, "offset": 4496488, "length": 111157 },
+          { "level": 1, "col": 2, "row": 4, "offset": 4607653, "length": 159006 },
+          { "level": 1, "col": 3, "row": 4, "offset": 4766667, "length": 112418 },
+          { "level": 1, "col": 4, "row": 4, "offset": 4879093, "length": 4828 },
+          { "level": 2, "col": 0, "row": 0, "offset": 303898, "length": 117449 },
+          { "level": 2, "col": 1, "row": 0, "offset": 421355, "length": 185042 },
+          { "level": 2, "col": 2, "row": 0, "offset": 606405, "length": 31028 },
+          { "level": 2, "col": 0, "row": 1, "offset": 637441, "length": 190402 },
+          { "level": 2, "col": 1, "row": 1, "offset": 827851, "length": 236715 },
+          { "level": 2, "col": 2, "row": 1, "offset": 1064574, "length": 71330 },
+          { "level": 2, "col": 0, "row": 2, "offset": 1135912, "length": 30321 },
+          { "level": 2, "col": 1, "row": 2, "offset": 1166241, "length": 70149 },
+          { "level": 2, "col": 2, "row": 2, "offset": 1236398, "length": 2095 },
+          { "level": 3, "col": 0, "row": 0, "offset": 64669, "length": 185605 },
+          { "level": 3, "col": 1, "row": 0, "offset": 250282, "length": 26646 },
+          { "level": 3, "col": 0, "row": 1, "offset": 276936, "length": 25978 },
+          { "level": 3, "col": 1, "row": 1, "offset": 302922, "length": 968 },
+          { "level": 4, "col": 0, "row": 0, "offset": 2600, "length": 62061 }
+        ]
+      }
+    },
+    "sst_tile_vertices": { "format": "arrow-ipc-stream", "blob": "sst_tile_vertices" },
+    "sst_tile_indices": { "format": "arrow-ipc-stream", "blob": "sst_tile_indices" }
+  },
+  "layers": [
+    {
+      "id": "sst",
+      "kind": "tiled_raster",
+      "label": "Synthetic SST-like field, COG tiles as chunk references in EPSG:3031",
+      "source": "sst_chunks",
+      "palette": {
+        "name": "ocean",
+        "range": [-2, 13]
+      },
+      "plan": {
+        "crs": "EPSG:3031",
+        "coverage": "all_levels",
+        "selection": { "rule": "coarsest_sufficient" },
+        "mesh": { "vertices": "sst_tile_vertices", "indices": "sst_tile_indices", "position_column": "position", "uv_column": "uv", "index_column": "index" },
+        "levels": [
+          {
+            "level": 4,
+            "pixel_size": 80000,
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "footprint": [-6400000, 6400000, -6400000, 6400000],
+                "mesh": { "first_vertex": 0, "vertex_count": 4, "first_index": 0, "index_count": 6 }
+              }
+            ]
+          },
+          {
+            "level": 3,
+            "pixel_size": 40000,
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "footprint": [-6400000, 3840000, -3840000, 6400000],
+                "mesh": { "first_vertex": 4, "vertex_count": 4, "first_index": 6, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 0,
+                "footprint": [3840000, 6400000, -3840000, 6400000],
+                "mesh": { "first_vertex": 8, "vertex_count": 4, "first_index": 12, "index_count": 6 }
+              },
+              {
+                "col": 0,
+                "row": 1,
+                "footprint": [-6400000, 3840000, -6400000, -3840000],
+                "mesh": { "first_vertex": 12, "vertex_count": 4, "first_index": 18, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 1,
+                "footprint": [3840000, 6400000, -6400000, -3840000],
+                "mesh": { "first_vertex": 16, "vertex_count": 4, "first_index": 24, "index_count": 6 }
+              }
+            ]
+          },
+          {
+            "level": 2,
+            "pixel_size": 20000,
+            "tiles": [
+              {
+                "col": 0,
+                "row": 0,
+                "footprint": [-6400000, -1280000, 1280000, 6400000],
+                "mesh": { "first_vertex": 20, "vertex_count": 4, "first_index": 30, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 0,
+                "footprint": [-1280000, 3840000, 1280000, 6400000],
+                "mesh": { "first_vertex": 24, "vertex_count": 4, "first_index": 36, "index_count": 6 }
+              },
+              {
+                "col": 2,
+                "row": 0,
+                "footprint": [3840000, 6400000, 1280000, 6400000],
+                "mesh": { "first_vertex": 28, "vertex_count": 4, "first_index": 42, "index_count": 6 }
+              },
+              {
+                "col": 0,
+                "row": 1,
+                "footprint": [-6400000, -1280000, -3840000, 1280000],
+                "mesh": { "first_vertex": 32, "vertex_count": 4, "first_index": 48, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 1,
+                "footprint": [-1280000, 3840000, -3840000, 1280000],
+                "mesh": { "first_vertex": 36, "vertex_count": 4, "first_index": 54, "index_count": 6 }
+              },
+              {
+                "col": 2,
+                "row": 1,
+                "footprint": [3840000, 6400000, -3840000, 1280000],
+                "mesh": { "first_vertex": 40, "vertex_count": 4, "first_index": 60, "index_count": 6 }
+              },
+              {
+                "col": 0,
+                "row": 2,
+                "footprint": [-6400000, -1280000, -6400000, -3840000],
+                "mesh": { "first_vertex": 44, "vertex_count": 4, "first_index": 66, "index_count": 6 }
+              },
+              {
+                "col": 1,
+                "row": 2,
+                "footprint": [-1280000, 3840000, -6400000, -3840000],
+                "mesh": { "first_vertex": 48, "vertex_count": 4, "first_index": 72, "index_count": 6 }
+              },
+              {
+                "col": 2,
+                "row": 2,
+                "footprint": [3840000, 6400000, -6400000, -3840000],
+                "mesh": { "first_vertex": 52, "vertex_count": 4, "first_index": 78, "index_count": 6 }
+              }
+            ]
+          },
+          {
+            "level": 1,
+            "pixel_size": 10000,
+            "tiles": [
+              {
+                "col": 2,
+                "row": 2,
+                "footprint": [-1280000, 1280000, -1280000, 1280000],
+                "mesh": { "first_vertex": 56, "vertex_count": 4, "first_index": 84, "index_count": 6 }
+              },
+              {
+                "col": 3,
+                "row": 2,
+                "footprint": [1280000, 3840000, -1280000, 1280000],
+                "mesh": { "first_vertex": 60, "vertex_count": 4, "first_index": 90, "index_count": 6 }
+              },
+              {
+                "col": 2,
+                "row": 3,
+                "footprint": [-1280000, 1280000, -3840000, -1280000],
+                "mesh": { "first_vertex": 64, "vertex_count": 4, "first_index": 96, "index_count": 6 }
+              },
+              {
+                "col": 3,
+                "row": 3,
+                "footprint": [1280000, 3840000, -3840000, -1280000],
+                "mesh": { "first_vertex": 68, "vertex_count": 4, "first_index": 102, "index_count": 6 }
+              }
+            ]
+          },
+          {
+            "level": 0,
+            "pixel_size": 5000,
+            "tiles": [
+              {
+                "col": 4,
+                "row": 4,
+                "footprint": [-1280000, 0, 0, 1280000],
+                "mesh": { "first_vertex": 72, "vertex_count": 4, "first_index": 108, "index_count": 6 }
+              },
+              {
+                "col": 5,
+                "row": 4,
+                "footprint": [0, 1280000, 0, 1280000],
+                "mesh": { "first_vertex": 76, "vertex_count": 4, "first_index": 114, "index_count": 6 }
+              },
+              {
+                "col": 4,
+                "row": 5,
+                "footprint": [-1280000, 0, -1280000, 0],
+                "mesh": { "first_vertex": 80, "vertex_count": 4, "first_index": 120, "index_count": 6 }
+              },
+              {
+                "col": 5,
+                "row": 5,
+                "footprint": [0, 1280000, -1280000, 0],
+                "mesh": { "first_vertex": 84, "vertex_count": 4, "first_index": 126, "index_count": 6 }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
