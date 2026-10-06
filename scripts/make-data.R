@@ -17,7 +17,9 @@
 # geoarrow's coord_type = "SEPARATE".
 #
 # The CRS geoarrow writes for "EPSG:3031" is the PROJJSON object from wk's
-# bundled table, so the output does not depend on the PROJ install.
+# bundled table, so the output does not depend on the PROJ install. With
+# nanoarrow 0.8.0.1, geoarrow 0.4.4 and wk 0.9.5 a rerun gives identical
+# bytes; other versions may write different (equally valid) bytes.
 
 stopifnot(file.exists("schema"), file.exists("fixtures"))
 out <- file.path("fixtures", "data")
@@ -157,6 +159,12 @@ write_ipc(batch(name = c("east", "west"),
                                   crs = "OGC:CRS84")),
           file.path(bad, "crs-not-view.arrows"))
 
+# A crs_type that does not fit the form of crs (a code string called projjson).
+write_ipc(set_field_metadata(batch(name = c("east", "west"), geometry = native(line_wkt)), "geometry", list(
+  "ARROW:extension:name" = "geoarrow.linestring",
+  "ARROW:extension:metadata" = '{"crs":"EPSG:3031","crs_type":"projjson"}'
+)), file.path(bad, "crs-type-mismatch.arrows"))
+
 # A geometry collection: geoarrow.geometrycollection, a List of a dense union
 # of the native types (type ids 1 point, 2 linestring), which 'geoarrow' in R
 # does not write, so it is built from its parts here.
@@ -200,7 +208,8 @@ meta <- nanoarrow::infer_nanoarrow_schema(p)$children$geometry$metadata
 meta[["ARROW:extension:name"]] <- "geoarrow.linestring"
 write_ipc(set_field_metadata(p, "geometry", meta), file.path(bad, "storage-mismatch.arrows"))
 
-# An attribute column of a type popups do not show (binary).
+# A column of a type popups do not show (binary); its scene names it in a
+# popup (an unnamed binary column is allowed and ignored).
 write_ipc(batch(name = c("a", "b"),
                 payload = nanoarrow::as_nanoarrow_array(list(as.raw(1:3), as.raw(4:6)), schema = nanoarrow::na_binary()),
                 geometry = native(c("POINT (0 0)", "POINT (1000000 1000000)"))),

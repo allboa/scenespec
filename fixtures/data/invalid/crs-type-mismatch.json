@@ -13,24 +13,18 @@
   "data": {
     "layer": {
       "format": "arrow-ipc-stream",
-      "url": "attribute-binary.arrows",
+      "url": "crs-type-mismatch.arrows",
       "geometry": {
         "column": "geometry",
-        "encoding": "geoarrow.point"
+        "encoding": "geoarrow.linestring"
       }
     }
   },
   "layers": [
     {
       "id": "layer",
-      "kind": "point",
-      "data": "layer",
-      "popup": {
-        "columns": [
-          "name",
-          "payload"
-        ]
-      }
+      "kind": "path",
+      "data": "layer"
     }
   ]
 }

@@ -94,8 +94,8 @@ declared in the scene, and the coordinate layout and the CRS travel in the
 Arrow schema, where a reader finds them.
 
 - **One table per data reference**: an Arrow IPC stream
-  (`arrow-ipc-stream`) or file (`arrow-ipc-file`), as declared, with one or
-  more record batches of one schema.
+  (`arrow-ipc-stream`) or file (`arrow-ipc-file`), as declared, with zero or
+  more record batches of one schema (an empty table may have none).
 - **Geometry**: the column named by `geometry.column` has a native GeoArrow
   extension type: its field metadata `ARROW:extension:name` is one of
   `geoarrow.point`, `geoarrow.linestring`, `geoarrow.polygon`,
@@ -103,7 +103,8 @@ Arrow schema, where a reader finds them.
   `geoarrow.multipolygon`, and equals `geometry.encoding`. Serialised
   geometry (`geoarrow.wkb`, `geoarrow.wkt`, `ogc.wkb` and their large and
   view forms) is never used: the producer converts it before the data
-  leave. A table has one geometry column.
+  leave. Only the named column is the layer's geometry; other columns are
+  not drawn.
 - **Storage**, as GeoArrow lays it out: a point is a coordinate; a
   linestring or a multipoint is a List of coordinates; a polygon (a List of
   rings) or a multilinestring is a List of Lists; a multipolygon is three
@@ -118,24 +119,29 @@ Arrow schema, where a reader finds them.
   PROJJSON object (what geoarrow writes) or an `authority:code` string.
   `crs_type`, if given, is `projjson` or `authority_code` (WKT and SRID
   forms are not used: a reader without PROJ could not match them), and
-  `edges`, if given, is `planar`. Coordinates are in the view CRS: the
+  `edges`, if given, is `planar`. `crs_type` fits the form of `crs`:
+  `projjson` with an object, `authority_code` with a string. Coordinates are in the view CRS: the
   producer transforms them before writing and writes the view's CRS. Two
   CRSs match when they are equal as JSON values (ignoring key order and
   PROJJSON's `$schema`), or when one authority code names both (the string
-  itself, or a PROJJSON object's top-level `id` or `ids`), so a `view.crs`
-  of `"EPSG:3031"` matches the PROJJSON for EPSG:3031. `crs` is required
-  when the view has a CRS, and may be left out for a `cartesian` view
-  without one. A reader does not reproject; one that compares and finds a
+  itself, or a PROJJSON object's top-level `id` or `ids`; authority codes
+  compare case-insensitively), so a `view.crs` of `"EPSG:3031"` matches the
+  PROJJSON for EPSG:3031. `crs` is required when the view has a CRS, and
+  may be left out for a `cartesian` view without one. The scene's optional
+  `geometry.crs`, when given, matches the Arrow `crs` by the same rule. A reader does not reproject; one that compares and finds a
   mismatch reports an error for the layer and does not draw it.
-- **Attributes**: every other column is an attribute or a colour column.
-  Attribute types are those a popup shows as text: boolean, signed and
+- **Columns a layer names**: a popup column is an attribute, and a colour
+  column, named by a layer's `fill` or `stroke`, is
+  `FixedSizeList<uint8, 4>`. Attribute types are those a popup shows as
+  text: boolean, signed and
   unsigned integers (8 to 64 bits), float32, float64, string (Utf8 and
   LargeUtf8), date (Date32 and Date64) and timestamp (any unit, with or
-  without a time zone); nulls are missing values. A colour column, named by
-  a layer's `fill` or `stroke`, is `FixedSizeList<uint8, 4>`. Dictionary
-  columns are not used: a factor or category is written as strings, and a
-  legend that lists categories in order is written from them as data
-  (0.5). Legends read no columns; popup columns name attributes.
+  without a time zone); nulls are missing values. A dictionary column is not
+  an attribute: a factor or category a popup shows is written as strings,
+  and a legend that lists categories in order is written from them as data
+  (0.5). Legends read no columns. Columns no layer names may have any Arrow
+  type (a duration, a time of day, binary, a list) and readers ignore them,
+  so a producer need not drop them.
 - **Out of scope**: geometry collections (`geoarrow.geometrycollection`),
   mixed kinds in one column (`geoarrow.geometry`), M coordinates (`xym` and
   `xyzm`), boxes (`geoarrow.box`), curves and non-planar edges. A producer
@@ -145,9 +151,8 @@ Arrow schema, where a reader finds them.
   not one of the six above (WKB, an out of scope type, or one the reader
   does not know), the reader reports an error for each layer that draws the
   table and draws nothing from it; it does not guess from the storage.
-  Other layers draw as usual. An attribute column with an extension type
-  the reader does not know is read as its storage type, as Arrow readers
-  do.
+  Other layers draw as usual. Any other column with an extension type the
+  reader does not know is read as its storage type, as Arrow readers do.
 
 aobcore's producers (`vector_stream()`, `vector_ipc()` and
 `gdal_vector_stream()`) write interleaved xy coordinates and a PROJJSON CRS
@@ -161,18 +166,20 @@ two or three features in EPSG:3031 and a few attribute columns: `point`,
 has a date and a colour column), and `multipoint`, `multilinestring` and
 `multipolygon` are separated (`multipoint` gives its CRS as
 `{"crs": "EPSG:3031", "crs_type": "authority_code"}`; between them they
-have int64, boolean and timestamp attributes). `fixtures/valid/explicit-data-0.6.json`
-draws all six, with popups. `fixtures/data/invalid/` holds valid scenes
-whose data break the contract for one reason each: WKB geometry, no CRS, a
-CRS that is not the view's, a geometry collection, M coordinates, storage
-that does not match the extension, a binary attribute, an encoding the
+have int64, boolean and timestamp attributes).
+`fixtures/valid/explicit-data-0.6.json` draws all six, with popups (the
+polygon reference also gives `geometry.crs`). `fixtures/data/invalid/`
+holds valid scenes whose data break the contract for one reason each: WKB
+geometry, no CRS, a CRS that is not the view's, a `crs_type` that does not
+fit the `crs`, a geometry collection, M coordinates, storage that does not
+match the extension, a binary column named in a popup, an encoding the
 scene does not declare, a missing popup column and a colour column that is
 not RGBA. `scripts/make-data.R` writes the streams with the calls aobcore
 makes (nanoarrow, geoarrow and wk); `scripts/check-data.js` reads them with
 apache-arrow (the version aobcore's renderer bundles) and checks the rules
-above on extension names, metadata, storage types, CRS and columns (not
-coordinate values, such as closed rings). The streams are binary, so CI's
-ASCII check drops exactly `fixtures/data/*.arrows` and
+above on extension names, metadata, storage types, CRS and named columns
+(not coordinate values, such as closed rings). The streams are binary, so
+CI's ASCII check drops exactly `fixtures/data/*.arrows` and
 `fixtures/data/invalid/*.arrows` from its results; the scenes beside them
 are still checked.
 
@@ -674,8 +681,9 @@ each vector table whose bytes are in the repo, for conformance scenes and
 `fixtures/valid/` (which must pass) and `fixtures/data/invalid/` (valid
 scenes whose data must fail for exactly one reason), and checks it against
 the explicit-data contract: the IPC format, the geometry extension name
-and storage, the CRS against `view.crs`, the attribute and colour column
-types, and the columns its layers name. It also fails if a file in
+and storage, the CRS against `view.crs` and `geometry.crs`, and the
+columns its layers name (popup columns are attributes, colour columns
+RGBA). It also fails if a file in
 `fixtures/data/` is not read by any scene.
 
 ## Open questions

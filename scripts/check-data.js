@@ -6,15 +6,15 @@
 //   - the bytes are the declared IPC format (stream or file);
 //   - the geometry column has a native GeoArrow extension type, the one the
 //     scene declares (never WKB or WKT, no geometry collections);
-//   - the extension metadata gives a CRS that matches view.crs, and planar
-//     edges;
+//   - the extension metadata gives a CRS whose form fits its crs_type and
+//     that matches view.crs (and the scene's geometry.crs, if given), and
+//     planar edges;
 //   - the storage is the layout the extension names: nested 32-bit Lists
 //     down to coordinates, interleaved (FixedSizeList<double> named xy or
 //     xyz) or separated (Struct of doubles x, y and optionally z), no M;
-//   - every other column is an attribute type popups show, or a colour
-//     column (FixedSizeList<uint8, 4>);
-//   - the layers that draw it name colour columns of that type and popup
-//     columns that exist and are attributes.
+//   - the columns its layers name exist: colour columns (fill, stroke) are
+//     FixedSizeList<uint8, 4> and popup columns are attribute types. Other
+//     columns may have any type; readers ignore them.
 //
 //   node scripts/check-data.js            run the suite
 //   node scripts/check-data.js a.json     check the local data of given scenes
@@ -180,9 +180,20 @@ function geometryError(field, ref, view) {
   if (m.crs_type !== undefined && !CRS_TYPES.includes(m.crs_type)) {
     return `crs_type ${m.crs_type} is not ${CRS_TYPES.join(" or ")}`;
   }
+  const hasCrs = m.crs !== undefined && m.crs !== null;
+  if (hasCrs && m.crs_type === "projjson" && (typeof m.crs !== "object" || Array.isArray(m.crs))) {
+    return `crs_type is projjson but crs is not a JSON object`;
+  }
+  if (hasCrs && m.crs_type === "authority_code" && !(typeof m.crs === "string" && AUTH_CODE.test(m.crs))) {
+    return `crs_type is authority_code but crs is not an "authority:code" string`;
+  }
   if (view.crs !== undefined) {
-    if (m.crs === undefined || m.crs === null) return `geometry column "${field.name}" has no crs in its extension metadata (view CRS ${crsLabel(view.crs)})`;
+    if (!hasCrs) return `geometry column "${field.name}" has no crs in its extension metadata (view CRS ${crsLabel(view.crs)})`;
     if (!sameCrs(m.crs, view.crs)) return `geometry CRS ${crsLabel(m.crs)} is not the view CRS ${crsLabel(view.crs)}`;
+  }
+  const declaredCrs = ref.geometry.crs;
+  if (declaredCrs !== undefined && !(hasCrs && sameCrs(m.crs, declaredCrs))) {
+    return `geometry CRS ${crsLabel(m.crs)} is not the scene's geometry.crs ${crsLabel(declaredCrs)}`;
   }
   return storageError(field, ext);
 }
@@ -204,16 +215,9 @@ function dataErrors(bytes, id, ref, scene) {
   if (!geom) return [`${where}: geometry column "${ref.geometry.column}" not found`];
   const ge = geometryError(geom, ref, scene.view || {});
   if (ge) return [`${where}: ${ge}`];
+  // Type rules apply only to the columns a layer names; other columns may
+  // have any Arrow type and are ignored.
   const errors = [];
-  for (const f of fields) {
-    if (f === geom) continue;
-    const ext = f.metadata.get("ARROW:extension:name");
-    if (ext !== undefined && ext.startsWith("geoarrow.")) {
-      errors.push(`${where}: column "${f.name}" is a second geometry column (${ext}); one layer's data has one`);
-    } else if (!isAttribute(f.type) && !isColour(f.type)) {
-      errors.push(`${where}: column "${f.name}" is ${typeName(f.type)}, not an attribute type (bool, integer, float32 or float64, string, date, timestamp) or a colour column (FixedSizeList<Uint8, 4>)`);
-    }
-  }
   (scene.layers || []).forEach((L, i) => {
     if (L.data !== id) return;
     for (const key of ["fill", "stroke"]) {
@@ -226,7 +230,7 @@ function dataErrors(bytes, id, ref, scene) {
     for (const name of (L.popup && L.popup.columns) || []) {
       const f = fields.find((x) => x.name === name);
       if (!f) errors.push(`/layers/${i}/popup: column "${name}" not found in data ${id}`);
-      else if (!isAttribute(f.type)) errors.push(`/layers/${i}/popup: column "${name}" is ${typeName(f.type)}, not an attribute type`);
+      else if (!isAttribute(f.type)) errors.push(`/layers/${i}/popup: column "${name}" is ${typeName(f.type)}, not an attribute type (bool, integer, float32 or float64, string, date, timestamp)`);
     }
   });
   return errors;

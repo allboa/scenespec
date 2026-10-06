@@ -32,7 +32,8 @@
       "url": "../data/polygon.arrows",
       "geometry": {
         "column": "geometry",
-        "encoding": "geoarrow.polygon"
+        "encoding": "geoarrow.polygon",
+        "crs": "EPSG:3031"
       }
     },
     "multipoint": {
