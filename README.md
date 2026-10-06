@@ -19,11 +19,13 @@ Agents and humans working here follow the org brief:
 | `schema/scene-0.3.schema.json` | JSON Schema for scene spec 0.3: 0.2 plus colour images (RGB and RGBA) and JPEG tiles |
 | `schema/scene-0.4.schema.json` | JSON Schema for scene spec 0.4: 0.3 plus `view.bounds`, a region the camera is kept within |
 | `schema/scene-0.5.schema.json` | JSON Schema for scene spec 0.5: 0.4 plus scene-level `legends` and per-layer `popup` |
-| `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image. `polar-probe-bounds.json` (0.4) is the probe with `view.bounds`. `polar-probe-legends-popups.json` (0.5) adds legends and a land popup |
+| `schema/scene-0.6.schema.json` | JSON Schema for scene spec 0.6: 0.5 plus chunk references (data `format: "chunks"`) |
+| `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image. `polar-probe-bounds.json` (0.4) is the probe with `view.bounds`. `polar-probe-legends-popups.json` (0.5) adds legends and a land popup. `polar-cog-chunks.json` (0.6) is the tiled COG as chunk references, and `zarr-v2-chunks.json` (0.6) a small Zarr v2 array (the store is `tiny.zarr/`) as chunk references |
 | `fixtures/valid/` | Minimal scenes that must validate |
 | `fixtures/invalid/` | Scenes that must fail, one reason each |
 | `scripts/validate.js` | Schema validation (ajv, schema chosen by the scene's `version`) plus cross-reference checks |
-| `scripts/check-terms.js` | Fails if any renderer term from a denylist appears in the schema |
+| `scripts/check-terms.js` | Fails if any renderer term from a denylist appears in the schema, or (0.6) a file format name in the chunk-reference definitions |
+| `scripts/check-refs.js` | Decodes the chunk refs of conformance scenes whose bytes are in the repo (0.6) |
 
 ## A scene in brief
 
@@ -357,12 +359,154 @@ for land, and a `select` popup on land showing Natural Earth's `featurecla`
 and `scalerank`; a producer drawing it must carry those two columns in the
 land table.
 
+## 0.6: chunk references
+
+0.6 is 0.5 plus one data reference format, `chunks`, which a `tiled_raster`
+layer can draw. Every 0.5 construct is unchanged, so a 0.5 scene becomes a
+0.6 scene by changing `version`. It serves allboa/scenespec#10, from
+allboa/design decisions 0010 (item 2) and 0011: the chunk reference is the
+currency shared by the R-planned and browser-resolved routes. A COG tile, a
+Zarr chunk, a Kerchunk reference and an Icechunk virtual chunk are all one
+thing: bytes at a URL, an offset and a length, decoded by a codec and placed
+in a grid. A chunk reference carries bytes plus codec (Michael, 2026-10-06):
+the byte range, plus the codec chain and the grid needed to decode the bytes
+and place them, so a reader never reads the store's own metadata.
+
+```json
+"data": {
+  "tiny": {
+    "format": "chunks",
+    "grid": { "crs": "EPSG:3031", "geotransform": [-1200000, 100000, 0, -1000000, 0, 100000],
+              "dim": [24, 20], "chunk_size": [10, 10] },
+    "dtype": "float32",
+    "codecs": [ { "name": "bytes", "configuration": { "endian": "little" } },
+                { "name": "deflate", "configuration": { "level": 6 } } ],
+    "nodata": -9999,
+    "refs": { "rows": [
+      { "col": 0, "row": 0, "url": "tiny.zarr/0.0", "offset": 0, "length": 390 },
+      { "col": 1, "row": 0, "url": "tiny.zarr/0.1", "offset": 0, "length": 353 },
+      { "col": 2, "row": 0, "url": "tiny.zarr/0.2", "offset": 0, "length": 192 },
+      { "col": 0, "row": 1, "url": "tiny.zarr/1.0", "offset": 0, "length": 411 },
+      { "col": 1, "row": 1, "url": "tiny.zarr/1.1", "offset": 0, "length": 359 } ] }
+  }
+},
+"layers": [
+  { "id": "tiny", "kind": "tiled_raster", "source": "tiny",
+    "palette": { "name": "ocean", "range": [-2, 1] },
+    "plan": { "crs": "EPSG:3031", "coverage": "all_levels", "selection": { "rule": "coarsest_sufficient" },
+              "mesh": { "vertices": "tiny_vertices", "indices": "tiny_indices" },
+              "levels": [ { "level": 0, "pixel_size": 100000, "tiles": [
+                { "col": 0, "row": 0, "footprint": [-1200000, -200000, -1000000, 0],
+                  "mesh": { "first_vertex": 0, "vertex_count": 4, "first_index": 0, "index_count": 6 } }, ... ] } ] } }
+]
+```
+
+**The decoding rule.** A reader decodes each ref by reading bytes
+[offset, offset + length) of its URL and applying the codec chain in
+reverse, the last codec first. That gives one full chunk: chunk width x
+height x bands samples of `dtype`, laid out as `interleave` says, and a
+value is raw * `scale` + `offset`. Nothing else about the store is needed.
+
+- **chunks data reference**: `grid`, `dtype`, `codecs` and `refs` are
+  required; `url` (the default URL for refs that give none), `bands`
+  (default 1), `interleave`, `nodata`, `scale` and `offset` are optional.
+  The schema is reader-neutral: its chunk-reference definitions name
+  codecs, never a file or store format, and `scripts/check-terms.js`
+  checks that.
+- **grid**: `crs`, `geotransform`, `dim` (`[ncol, nrow]`) and `chunk_size`
+  (`[width, height]` in cells) describe level 0, the full-resolution grid.
+  `geotransform` is `[x0, dx, rx, y0, ry, dy]`: the corner of cell column
+  c and row r is at x = x0 + c * dx + r * rx, y = y0 + c * ry + r * dy, so
+  (x0, y0) is the outer corner of the first cell. `dy` is negative when row
+  0 is at the top (north up, as in a COG) and positive when row 0 is at the
+  bottom (as in many arrays written from netCDF, and in `tiny.zarr`); `dx`
+  is positive, and the rotation terms `rx` and `ry` must be 0 in 0.6.
+  `levels` lists coarser levels, each with its own `dim` and either its own
+  `geotransform` or a `scale` `[sx, sy]` from level 0 (geotransform
+  `[x0, dx * sx, 0, y0, 0, dy * sy]`), and optionally its own `chunk_size`.
+  Chunk (col, row) of a level covers cell columns col * width to
+  (col + 1) * width - 1 and cell rows row * height to (row + 1) * height - 1,
+  counted from the origin corner.
+  Chunks are stored at full size: an edge chunk is padded, and only its
+  cells inside the level are drawn.
+- **codecs**: a codec chain in the Zarr v3 shape, a list of
+  `{ "name", "configuration" }` in the order the codecs were applied when
+  writing. Exactly one array to bytes codec comes first: `bytes`
+  (configuration `endian`, `little` by default) or `jpeg` (configuration
+  `tables`, base64 JPEG tables as in 0.3's `jpeg_tables`; `jpeg` is the whole
+  chain, with `dtype` `uint8`, `interleave` `pixel` and 1 or 3 bands). Bytes
+  to bytes codecs follow: `predictor` (configuration `type`, `horizontal` or
+  `floating_point`, directly after `bytes`), `deflate` (a zlib stream),
+  `gzip`, `zstd`, `lzw` and `blosc` (whose frame header says how it was
+  written; its configuration `cname`, `clevel`, `shuffle`, `typesize`,
+  `blocksize` is for the record). Unknown codecs and unknown configuration
+  keys are rejected. 0.2's tile `encoding` maps across directly: codec
+  `deflate` with predictor `horizontal` is
+  `[bytes, predictor horizontal, deflate]`. A Zarr v2 `zlib` compressor is
+  `deflate`.
+- **dtype, bands and interleave**: `dtype` is one of 0.2's sample types.
+  With more than one band, `interleave` is `pixel` (a chunk holds every
+  band, the samples of one cell together), `plane` (a chunk holds every
+  band, one band's full chunk after another) or `separate` (a chunk holds
+  one band, and each ref names it in `band`). Within a band, cells run row
+  by row from the origin corner.
+- **refs**: exactly one of `rows`, inline JSON with one object per stored
+  chunk, or `table`, the data id of an Arrow table carried like any other
+  data (a `blob` or a `url`), so a large store does not bloat the scene. A
+  ref is `level` (default 0), `col`, `row`, `band` (only and always with
+  `separate`), `url` (default the reference's `url`; one of the two is
+  required), `offset` (0 or more) and `length` (1 or more). The table has
+  the same columns (`level`, `band` and `url` may be absent or null for
+  their defaults; `offset` and `length` are 64-bit integers). The validator
+  checks that a table id names a plain Arrow table but does not read it.
+- **sparse chunks**: a chunk with no ref is not stored. Every cell in it is
+  no data, as if filled with `nodata`, and it is not drawn. Leaving a ref
+  out is the only way to say so: a ref with length 0 is rejected.
+- **tiled_raster over chunks**: `source` may name a `chunks` reference.
+  The plan is the same (`crs`, `coverage`, `mesh`, `selection` or
+  `planned_for`), but each level gives only `level`, `pixel_size` and
+  `tiles`, and each tile only `col`, `row`, `footprint` and `mesh`: the
+  grid, codec chain, byte ranges, chunk size and edge windows come from the
+  source. Mesh uv is in chunk space, (0, 0) at the outer corner of the
+  chunk's first cell and (1, 1) at the opposite corner of the full padded
+  chunk, so on a north-up grid it is the same as a COG tile's. A palette
+  layer over chunks names its band in the layer's `band` (default 1); an
+  `rgb` layer needs every band in one chunk (`pixel` or `plane`). A `cog`
+  source plans exactly as in 0.2 to 0.5, and its plan levels must keep
+  their own grid and encoding.
+
+The conformance scene `polar-cog-chunks.json` is `polar-cog-tiles.json`
+re-expressed as chunks: the same grid (levels 1 to 4 by `scale`), the
+codec chain `[bytes little, deflate]`, a refs table of every one of the
+139 tiles in the five levels, and the same plan of 22 tiles with their
+footprints and mesh counts. The spike's COG is not committed anywhere, so
+its byte ranges were read from a copy regenerated with the spike's
+`make_cogs.py` recipe (written in R with gdalraster on GDAL 3.13.3), by
+reading the TileOffsets and TileByteCounts of every image in the file.
+Decoding two refs (level 0 col 4 row 4, and level 4) by the rule above
+gave exactly GDAL's read of the same pixels. The 22 tiles also in
+`polar-cog-tiles.json` have identical lengths there, at offsets exactly 120
+bytes later, because the newer GDAL writes a longer header; the refs are
+the regenerated file's. That COG is not in this repo either.
+
+The conformance scene `zarr-v2-chunks.json` is a Zarr v2 array as chunks,
+with its store in `conformance/tiny.zarr/`: 24 x 20 float32 cells of 100 km
+in EPSG:3031, 10 x 10 chunks, compressor `zlib` (codec `deflate`),
+`fill_value` -9999 (`nodata`), and row 0 at the bottom, so `dy` is
+positive. Chunk `1.2` is all fill and is not written, so it has no ref and
+no plan tile. Each ref is a whole chunk file: offset 0 and the file's
+length. The store was written by hand (a `.zarray` and zlib-compressed
+chunk files, no Zarr library), and GDAL's Zarr driver reads it.
+`npm test` decodes every ref whose bytes are in the repo
+(`scripts/check-refs.js`). The chunk files are compressed bytes, the only
+non-text files in the repo, so CI's ASCII check skips `tiny.zarr`.
+
 ## Validate
 
 
 ```sh
 npm ci
-npm test                              # denylist check + every fixture
+npm test                              # denylist check + every fixture + local chunk refs
 node scripts/validate.js my-scene.json   # validate your own scenes
 ```
 
@@ -390,7 +534,18 @@ end at 1 and increase, that a palette ramp keys a layer with a palette
 and matches it,
 that popups do not name the geometry column, and that palette and rgb
 ranges do not have equal ends. It does not read Arrow data, so it cannot
-check that popup columns exist.
+check that popup columns exist. For 0.6 it also checks that a codec chain
+starts with its array to bytes codec, that `predictor` comes directly
+after `bytes` (and `floating_point` only for float samples), that `jpeg`
+chains are alone, `uint8`, `pixel` and 1 or 3 bands, that grid level
+numbers are unique, that each inline ref is on its level's chunk grid, is
+unique, has a URL and gives `band` exactly when bands are `separate`, that
+a refs `table` is a plain Arrow table, that a plan over chunks has no
+level grids or encodings, names source levels and chunks on their grid and
+has a ref for every chunk it draws, and that a layer's `band` and `rgb`
+bands exist in the source. `scripts/check-refs.js` then decodes the inline
+refs of conformance scenes whose bytes are local files (codecs `deflate`
+and `gzip`) and checks each gives a full chunk.
 
 ## Open questions
 
@@ -426,6 +581,16 @@ post.
   (0.5 labels only the ends), display names and number formats for popup
   columns (0.5 shows column names and plain text), raster cell popups, and
   whether `trigger` needs a third value for both.
+- **Chunk references (0.6).** Open: a fill value that is data rather than
+  no data (a store of counts whose missing chunks mean 0 cannot be said in
+  0.6, where a missing chunk is always no data); refs that carry their
+  bytes inline (base64) for tiny chunks; array to array codecs, such as a
+  transpose for Fortran-order arrays; sharded stores (0.6 needs each inner
+  chunk as its own ref); dimensions beyond two plus bands, which wait for
+  a time axis (allboa/scenespec#9); rotated geotransforms; and the Arrow
+  column types of a refs table, which the validator cannot see. Per
+  decision 0011 the chunk-reference schema lives here until a second
+  producer exists, then moves to its own cross-language repo.
 - **Not in 0.1:** legends and popups (added in 0.5), per-layer opacity, and
   extension points for renderer-specific hints. The schema is closed
   (`additionalProperties: false`) so renderer props cannot leak in.

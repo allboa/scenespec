@@ -13,7 +13,7 @@ const Ajv2020 = require("ajv/dist/2020");
 const addFormats = require("ajv-formats");
 
 const ROOT = path.resolve(__dirname, "..");
-const VERSIONS = ["0.1", "0.2", "0.3", "0.4", "0.5"];
+const VERSIONS = ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6"];
 
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
@@ -47,8 +47,9 @@ function checkExtent(where, e, errors) {
 // Checks that need the whole document: ids resolve, ids are unique,
 // geometry matches layer kind, extents are ordered, origin and CRS rules,
 // (0.2) tile plans are consistent with their levels and sources, (0.3)
-// rgb bands and jpeg encodings fit every level, and (0.5) legends name a
-// layer and popups do not name the geometry column.
+// rgb bands and jpeg encodings fit every level, (0.5) legends name a
+// layer and popups do not name the geometry column, and (0.6) chunk refs lie
+// on their grid and plans over chunks name stored chunks.
 function semanticErrors(scene) {
   const errors = [];
   const data = scene.data || {};
@@ -71,14 +72,18 @@ function semanticErrors(scene) {
     }
     return data[id];
   };
-  // Raster values and mesh tables are plain Arrow tables, not vector data
-  // and not COGs.
+  // Raster values, mesh tables and (0.6) chunk ref tables are plain Arrow
+  // tables, not vector data, not COGs and not chunks.
   const needTable = (where, id) => {
     const ref = needData(where, id);
     if (!ref) return;
     if (ref.format === "cog") errors.push(`${where}: data "${id}" is a cog; expected an Arrow table`);
+    else if (ref.format === "chunks") errors.push(`${where}: data "${id}" is chunks; expected an Arrow table`);
     else if (ref.geometry) errors.push(`${where}: data "${id}" has a geometry column; expected a plain table`);
   };
+  for (const [id, ref] of Object.entries(data)) {
+    if (ref.format === "chunks") chunksErrors(`/data/${id}`, ref, needTable, errors);
+  }
   checkExtent("/view", scene.view && scene.view.extent, errors);
   // 0.4: bounds limit a flat camera; a globe has no edge to stop at.
   if (scene.view && scene.view.bounds) {
@@ -122,7 +127,7 @@ function semanticErrors(scene) {
         needTable(`${where}/mesh`, layer.mesh.indices);
       }
     } else if (layer.kind === "tiled_raster") {
-      tiledRasterErrors(where, layer, view, needData, needTable, errors);
+      tiledRasterErrors(where, layer, scene.version, view, needData, needTable, errors);
     }
   });
   if (atLeast(scene.version, "0.5")) {
@@ -180,11 +185,92 @@ function legendErrors(scene, errors) {
   });
 }
 
-function tiledRasterErrors(where, layer, view, needData, needTable, errors) {
-  const src = needData(`${where}/source`, layer.source);
-  if (src && src.format !== "cog") {
-    errors.push(`${where}/source: data "${layer.source}" is ${src.format}; expected a cog`);
+// 0.6: a chunks reference. The codec chain starts with its one array to
+// bytes codec; levels are unique; every inline ref lies on its level's chunk
+// grid, is unique, has a URL and names a band exactly when bands are
+// separate. A refs table must be a plain Arrow table (its rows are not read).
+function chunksErrors(where, ref, needTable, errors) {
+  const codecs = ref.codecs.map((c) => c.name);
+  const bands = ref.bands || 1;
+  const interleave = ref.interleave || "pixel";
+  if (!ARRAY_TO_BYTES.includes(codecs[0])) {
+    errors.push(`${where}/codecs: the chain must start with its array to bytes codec (${ARRAY_TO_BYTES.join(" or ")})`);
   }
+  codecs.forEach((name, k) => {
+    if (name === "predictor" && !(k === 1 && codecs[0] === "bytes")) {
+      errors.push(`${where}/codecs/${k}: predictor must come directly after bytes`);
+    }
+  });
+  const pred = ref.codecs.find((c) => c.name === "predictor");
+  if (pred && pred.configuration.type === "floating_point" && !ref.dtype.startsWith("float")) {
+    errors.push(`${where}/codecs: the floating_point predictor needs a float dtype (got ${ref.dtype})`);
+  }
+  if (codecs.includes("jpeg")) {
+    if (codecs.length !== 1) errors.push(`${where}/codecs: jpeg is the whole chain`);
+    if (ref.dtype !== "uint8") errors.push(`${where}: codec jpeg needs dtype uint8`);
+    if (interleave !== "pixel") errors.push(`${where}: codec jpeg needs interleave pixel`);
+    if (bands !== 1 && bands !== 3) errors.push(`${where}: codec jpeg needs 1 or 3 bands (got ${bands})`);
+  }
+  const levels = chunkLevels(ref);
+  const seenLevels = new Set();
+  (ref.grid.levels || []).forEach((lv, j) => {
+    if (seenLevels.has(lv.level)) errors.push(`${where}/grid/levels/${j}: duplicate level ${lv.level}`);
+    seenLevels.add(lv.level);
+  });
+  if (ref.refs.table !== undefined) needTable(`${where}/refs/table`, ref.refs.table);
+  const seen = new Set();
+  (ref.refs.rows || []).forEach((r, k) => {
+    const rw = `${where}/refs/rows/${k}`;
+    const level = r.level || 0;
+    const lv = levels.get(level);
+    if (!lv) {
+      errors.push(`${rw}: level ${level} is not in the grid`);
+    } else if (r.col >= lv.ncols || r.row >= lv.nrows) {
+      errors.push(`${rw}: chunk ${r.col}/${r.row} is outside level ${level}'s ${lv.ncols} x ${lv.nrows} chunks`);
+    }
+    if (interleave === "separate") {
+      if (r.band === undefined) errors.push(`${rw}: interleave separate needs band`);
+      else if (r.band > bands) errors.push(`${rw}: band ${r.band} is more than bands ${bands}`);
+    } else if (r.band !== undefined) {
+      errors.push(`${rw}: band is only for interleave separate`);
+    }
+    if (r.url === undefined && ref.url === undefined) {
+      errors.push(`${rw}: no url, and the reference gives no default url`);
+    }
+    const key = chunkKey(level, r.col, r.row, r.band);
+    if (seen.has(key)) errors.push(`${rw}: duplicate chunk ${key}`);
+    seen.add(key);
+  });
+}
+
+const ARRAY_TO_BYTES = ["bytes", "jpeg"];
+
+const chunkKey = (level, col, row, band) => `${level}/${col}/${row}${band === undefined ? "" : `/${band}`}`;
+
+// Level number -> its dim, chunk size and chunk counts, level 0 included.
+function chunkLevels(ref) {
+  const g = ref.grid;
+  const out = new Map();
+  const add = (level, dim, size) => {
+    out.set(level, { dim, size, ncols: Math.ceil(dim[0] / size[0]), nrows: Math.ceil(dim[1] / size[1]) });
+  };
+  add(0, g.dim, g.chunk_size);
+  for (const lv of g.levels || []) add(lv.level, lv.dim, lv.chunk_size || g.chunk_size);
+  return out;
+}
+
+function tiledRasterErrors(where, layer, version, view, needData, needTable, errors) {
+  const src = needData(`${where}/source`, layer.source);
+  const chunked = !!src && src.format === "chunks";
+  if (src && src.format !== "cog" && !chunked) {
+    const want = atLeast(version, "0.6") ? "a cog or chunks" : "a cog";
+    errors.push(`${where}/source: data "${layer.source}" is ${src.format}; expected ${want}`);
+  }
+  if (layer.band !== undefined) {
+    if (layer.rgb) errors.push(`${where}/band: not used with rgb; give the bands in rgb.bands`);
+    else if (src && !chunked) errors.push(`${where}/band: only for a chunks source; a cog gives its band in each level's encoding`);
+  }
+  if (chunked) chunkSourceErrors(where, layer, src, errors);
   const plan = layer.plan;
   if (view.crs === undefined) {
     errors.push(`${where}/plan: a tiled raster needs view.crs`);
@@ -197,10 +283,45 @@ function tiledRasterErrors(where, layer, view, needData, needTable, errors) {
   const levels = new Set();
   const vertexRuns = [];
   const indexRuns = [];
+  const chunkInfo = chunked ? chunkLevels(src) : null;
+  const separate = chunked && (src.interleave || "pixel") === "separate";
+  const stored = chunked && src.refs.rows
+    ? new Set(src.refs.rows.map((r) => chunkKey(r.level || 0, r.col, r.row, separate ? r.band : undefined)))
+    : null;
+  const drawnBand = separate ? layer.band || 1 : undefined;
   plan.levels.forEach((lv, j) => {
     const lw = `${where}/plan/levels/${j}`;
     if (levels.has(lv.level)) errors.push(`${lw}: duplicate level ${lv.level}`);
     levels.add(lv.level);
+    // 0.6: a level over chunks has no grid or encoding of its own.
+    if (chunked && lv.grid) {
+      errors.push(`${lw}: a plan over a chunks source takes grid, encoding and byte ranges from the source; give level, pixel_size and tiles`);
+      return;
+    }
+    if (!lv.grid) {
+      if (!chunked) {
+        errors.push(`${lw}: a plan over a cog gives each level's grid, encoding and tile byte ranges`);
+        return;
+      }
+      const info = chunkInfo.get(lv.level);
+      if (!info) errors.push(`${lw}: level ${lv.level} is not in the source grid`);
+      const chunks = new Set();
+      lv.tiles.forEach((t, k) => {
+        const tw = `${lw}/tiles/${k}`;
+        const key = chunkKey(lv.level, t.col, t.row, drawnBand);
+        if (chunks.has(key)) errors.push(`${tw}: duplicate chunk ${t.col}/${t.row}`);
+        chunks.add(key);
+        if (info && (t.col >= info.ncols || t.row >= info.nrows)) {
+          errors.push(`${tw}: chunk ${t.col}/${t.row} is outside level ${lv.level}'s ${info.ncols} x ${info.nrows} chunks`);
+        } else if (info && stored && !stored.has(key)) {
+          errors.push(`${tw}: chunk ${key} has no ref; a chunk that is not stored is no data and is left out of the plan`);
+        }
+        checkExtent(`${tw}/footprint`, t.footprint, errors);
+        vertexRuns.push({ where: tw, start: t.mesh.first_vertex, count: t.mesh.vertex_count });
+        indexRuns.push({ where: tw, start: t.mesh.first_index, count: t.mesh.index_count });
+      });
+      return;
+    }
     checkExtent(`${lw}/grid`, lv.grid.extent, errors);
     const enc = lv.encoding;
     const spp = enc.samples_per_pixel || 1;
@@ -248,6 +369,30 @@ function tiledRasterErrors(where, layer, view, needData, needTable, errors) {
   };
   checkRuns(vertexRuns, "vertex");
   checkRuns(indexRuns, "index");
+}
+
+// 0.6: the bands a tiled raster draws must exist in its chunks source; rgb
+// needs every band in one chunk (not separate), and non-uint8 rgb a range.
+function chunkSourceErrors(where, layer, src, errors) {
+  const bands = src.bands || 1;
+  if (layer.rgb) {
+    const named = layer.rgb.bands.map((b) => ["rgb.bands", b]);
+    if (layer.rgb.alpha !== undefined) named.push(["rgb.alpha", layer.rgb.alpha]);
+    for (const [what, b] of named) {
+      if (b > bands) errors.push(`${where}/rgb: ${what} ${b} is more than the source's bands ${bands}`);
+    }
+    if (layer.rgb.alpha !== undefined && layer.rgb.bands.includes(layer.rgb.alpha)) {
+      errors.push(`${where}/rgb: rgb.alpha ${layer.rgb.alpha} is also a colour band`);
+    }
+    if ((src.interleave || "pixel") === "separate") {
+      errors.push(`${where}/rgb: rgb needs every band in one chunk (interleave pixel or plane), not separate`);
+    }
+    if (src.dtype !== "uint8" && !layer.rgb.range) {
+      errors.push(`${where}/rgb: rgb on ${src.dtype} samples needs rgb.range to scale them`);
+    }
+  } else if ((layer.band || 1) > bands) {
+    errors.push(`${where}/band: band ${layer.band} is more than the source's bands ${bands}`);
+  }
 }
 
 // 0.3: a layer drawn as a colour image names its bands itself, and every

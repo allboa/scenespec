@@ -20,6 +20,9 @@ jobs:
       - run: npm ci && npm test
       - name: ASCII only
         run: |
-          if grep -rlP '[^\x00-\x7F]' . --exclude-dir=node_modules --exclude-dir=.git; then
+          # The chunk files of the conformance Zarr store are compressed bytes;
+          # its metadata files are checked like every other file.
+          if grep -rlP '[^\x00-\x7F]' . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=tiny.zarr ||
+             grep -lP '[^\x00-\x7F]' conformance/tiny.zarr/.zarray conformance/tiny.zarr/.zattrs; then
             echo "Non-ASCII characters found in the files above"; exit 1
           fi
