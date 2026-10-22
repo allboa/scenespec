@@ -20,15 +20,17 @@ Agents and humans working here follow the org brief:
 | `schema/scene-0.4.schema.json` | JSON Schema for scene spec 0.4: 0.3 plus `view.bounds`, a region the camera is kept within |
 | `schema/scene-0.5.schema.json` | JSON Schema for scene spec 0.5: 0.4 plus scene-level `legends` and per-layer `popup` |
 | `schema/scene-0.6.schema.json` | JSON Schema for scene spec 0.6: 0.5 plus chunk references (data `format: "chunks"`) |
-| `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image. `polar-probe-bounds.json` (0.4) is the probe with `view.bounds`. `polar-probe-legends-popups.json` (0.5) adds legends and a land popup. `polar-cog-chunks.json` (0.6) is the tiled COG as chunk references, and `zarr-v2-chunks.json` (0.6) a small Zarr v2 array (the store is `tiny.zarr/`) as chunk references |
+| `schema/scene-0.7.schema.json` | JSON Schema for scene spec 0.7: 0.6 plus mesh layers (`kind: "mesh"`) |
+| `conformance/` | Conformance scenes. `polar-probe.json` is the polar view probe (design origin record, 2026-09-30) converted to 0.1. `polar-cog-tiles.json` (0.2) is a tiled COG plan from allboa/spikes `tiled-cog-polar/`. `polar-rgb-jpeg-tiles.json` (0.3) is a 3-band YCbCr JPEG COG drawn as a colour image. `polar-probe-bounds.json` (0.4) is the probe with `view.bounds`. `polar-probe-legends-popups.json` (0.5) adds legends and a land popup. `polar-cog-chunks.json` (0.6) is the tiled COG as chunk references, and `zarr-v2-chunks.json` (0.6) a small Zarr v2 array (the store is `tiny.zarr/`) as chunk references. `polar-mesh.json` (0.7) is a small triangle mesh in EPSG:3031 coloured by a face column, with edges, a popup and a legend |
 | `fixtures/valid/` | Minimal scenes that must validate |
 | `fixtures/invalid/` | Scenes that must fail, one reason each |
-| `fixtures/data/` | Explicit-data fixtures: one Arrow IPC stream per GeoArrow geometry kind (drawn by `fixtures/valid/explicit-data-0.6.json`), and in `invalid/` streams and scenes whose data breaks the contract for one reason each |
+| `fixtures/data/` | Explicit-data fixtures: one Arrow IPC stream per GeoArrow geometry kind (drawn by `fixtures/valid/explicit-data-0.6.json`), the three mesh tables (0.7, `mesh-*.arrows`), and in `invalid/` streams and scenes whose data breaks the contract for one reason each |
 | `scripts/validate.js` | Schema validation (ajv, schema chosen by the scene's `version`) plus cross-reference checks |
 | `scripts/check-terms.js` | Fails if any renderer term from a denylist appears in the schema, or (0.6) a file format name in the chunk-reference definitions |
 | `scripts/check-refs.js` | Decodes the chunk refs of conformance scenes whose bytes are in the repo (0.6) |
-| `scripts/check-data.js` | Reads the vector data whose bytes are in the repo (apache-arrow) and checks it against the explicit-data contract |
-| `scripts/make-data.R` | Writes the Arrow fixtures in `fixtures/data/` (nanoarrow, geoarrow, wk) |
+| `scripts/check-data.js` | Reads the vector data and (0.7) mesh tables whose bytes are in the repo (apache-arrow) and checks them against the explicit-data and mesh contracts |
+| `scripts/make-data.R` | Writes the vector Arrow fixtures in `fixtures/data/` (nanoarrow, geoarrow, wk) |
+| `scripts/make-mesh-data.js` | Writes the mesh Arrow fixtures in `fixtures/data/` (apache-arrow) |
 
 ## A scene in brief
 
@@ -627,6 +629,69 @@ check drops exactly the paths
 `conformance/tiny.zarr/<row>.<col>` from its results; every other file,
 the store's `.zarray` and `.zattrs` included, is still checked.
 
+## 0.7: mesh layers
+
+0.7 adds one layer kind, `mesh`: a triangle mesh drawn on its own, such as
+a terrain surface, a triangulated polygon or a mesh built from a point
+cloud. 0.1 already has a `mesh` inside a raster layer, where it is the
+pre-projected surface the raster's cells are drawn on. A mesh layer uses
+the same tables and column names, adds an optional face table, and is
+coloured from its own columns rather than from a grid.
+
+```json
+{
+  "id": "dome", "kind": "mesh",
+  "mesh": { "vertices": "mesh_vertices", "indices": "mesh_indices", "faces": "mesh_faces" },
+  "fill_by": { "table": "faces", "column": "count",
+               "palette": { "name": "terrain", "range": [0, 10] } },
+  "stroke": [60, 66, 72, 255], "stroke_width_px": 1,
+  "z_scale": 100,
+  "popup": { "columns": ["count", "cell"] }
+}
+```
+
+| Table | Column | Type | Meaning |
+| --- | --- | --- | --- |
+| vertices | `position` (or `mesh.position_column`) | FixedSizeList<float, 2 or 3> | Position in view CRS units, with `view.local_origin` subtracted when the data reference says `origin_subtracted`. A third coordinate is height, in view CRS units |
+| | any other | any | Per-vertex values, for `fill_by` |
+| indices | `index` (or `mesh.index_column`) | unsigned integer | 0-based vertex rows, three per triangle, counter-clockwise seen from above |
+| faces (optional) | any | any | One row per triangle, row k for triangle k: values that belong to a whole triangle (a count, a class, a feature id) |
+
+These are the drawable form of the
+[meshcore mesh spec](https://github.com/hypertidy/meshcore/blob/main/docs/mesh-spec-v0.1.md),
+so a mesh written by meshcore's Arrow writer is drawn as it stands.
+
+- **Fill.** `fill` is one RGBA colour; `fill_by` colours from one numeric
+  column through a palette, from the vertex table (blended across each
+  triangle) or the face table (each triangle flat). A layer gives one of
+  the two, not both; with neither, a renderer chooses a neutral fill.
+- **Edges.** `stroke` and `stroke_width_px` draw the triangle edges, as
+  for polygons.
+- **Height.** `z_scale` multiplies the third coordinate before drawing
+  (vertical exaggeration, default 1). Positions with two coordinates are
+  drawn at height 0.
+- **Popups.** A mesh popup shows face table columns for the triangle the
+  viewer selects or points at, so it needs `mesh.faces`. The face row is
+  the way back from a drawn triangle to the data it came from.
+- **Legends.** A palette ramp may key a mesh layer; it must equal the
+  layer's `fill_by.palette`, as it must equal a raster layer's `palette`.
+
+Not in 0.7: a texture draped through vertex `uv` (the raster mesh's `uv`
+is grid-only), per-vertex normals, and meshes split into tiles. They wait
+for a renderer that needs them.
+
+The validator checks, beyond the schema, that the three tables are plain
+Arrow tables, that `fill_by.table: "faces"` and a popup come with
+`mesh.faces`, and that `fill_by.palette.range` has differing ends.
+`scripts/check-data.js` reads the tables whose bytes are in the repo and
+checks that the position column is FixedSizeList<float, 2 or 3>, that the
+indices are unsigned, three per triangle and within the vertex rows, that
+the face table has one row per triangle, and that the `fill_by` and popup
+columns exist with usable types. The conformance scene
+`polar-mesh.json` is a 4 x 4 lattice over 3000 km about the pole (18
+triangles) with a dome of height as z, written by
+`scripts/make-mesh-data.js`.
+
 ## Validate
 
 
@@ -683,7 +748,8 @@ scenes whose data must fail for exactly one reason), and checks it against
 the explicit-data contract: the IPC format, the geometry extension name
 and storage, the CRS against `view.crs` and `geometry.crs`, and the
 columns its layers name (popup columns are attributes, colour columns
-RGBA). It also fails if a file in
+RGBA), and for 0.7 each mesh layer's tables against the mesh contract
+above. It also fails if a file in
 `fixtures/data/` is not read by any scene.
 
 ## Open questions
