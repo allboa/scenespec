@@ -16,6 +16,11 @@
 //     FixedSizeList<uint8, 4> and popup columns are attribute types. Other
 //     columns may have any type; readers ignore them.
 //
+// From 0.7 the tables of each mesh layer are read too: the position column
+// is FixedSizeList<float, 2 or 3>, the index column is unsigned, three per
+// triangle and within the vertex rows, the face table has one row per
+// triangle, and the fill_by and popup columns exist with usable types.
+//
 //   node scripts/check-data.js            run the suite
 //   node scripts/check-data.js a.json     check the local data of given scenes
 //
@@ -236,10 +241,96 @@ function dataErrors(bytes, id, ref, scene) {
   return errors;
 }
 
-// Check the local vector data of one scene file.
+// --- 0.7 mesh tables -----------------------------------------------------------
+
+const isNumeric = (t) => t.typeId === Type.Int || t.typeId === Type.Float;
+const isUnsigned = (t) => t.typeId === Type.Int && !t.isSigned;
+
+// Errors of one mesh layer's tables (vertices, indices and optionally faces,
+// each a table already read). Stops at the first fault in the tables
+// themselves, so a fixture fails for one reason; then checks the columns the
+// layer names.
+function meshErrors(where, layer, t) {
+  const mesh = layer.mesh;
+  const pos = mesh.position_column || "position";
+  const idx = mesh.index_column || "index";
+  const pf = t.vertices.schema.fields.find((f) => f.name === pos);
+  if (!pf) return [`${where}/mesh: position column "${pos}" not found in data ${mesh.vertices}`];
+  const pt = pf.type;
+  if (!(pt.typeId === Type.FixedSizeList && (pt.listSize === 2 || pt.listSize === 3) && pt.children[0].type.typeId === Type.Float)) {
+    return [`${where}/mesh: position column "${pos}" is ${typeName(pt)}, not FixedSizeList<float, 2 or 3>`];
+  }
+  const xf = t.indices.schema.fields.find((f) => f.name === idx);
+  if (!xf) return [`${where}/mesh: index column "${idx}" not found in data ${mesh.indices}`];
+  if (!isUnsigned(xf.type)) return [`${where}/mesh: index column "${idx}" is ${typeName(xf.type)}, not an unsigned integer`];
+  const nv = t.vertices.numRows;
+  const ni = t.indices.numRows;
+  if (ni % 3 !== 0) return [`${where}/mesh: ${ni} indices is not three per triangle`];
+  const col = t.indices.getChild(idx);
+  for (let k = 0; k < ni; k++) {
+    const v = Number(col.get(k));
+    if (!(v < nv)) return [`${where}/mesh: index ${v} at row ${k} is not a row of the ${nv} vertices`];
+  }
+  const ntri = ni / 3;
+  if (t.faces && t.faces.numRows !== ntri) {
+    return [`${where}/mesh: face table has ${t.faces.numRows} rows for ${ntri} triangles`];
+  }
+  const errors = [];
+  const fb = layer.fill_by;
+  if (fb) {
+    const table = fb.table === "faces" ? t.faces : t.vertices;
+    const f = table && table.schema.fields.find((x) => x.name === fb.column);
+    if (!f) errors.push(`${where}/fill_by: column "${fb.column}" not found in the ${fb.table} table`);
+    else if (!isNumeric(f.type)) errors.push(`${where}/fill_by: column "${fb.column}" is ${typeName(f.type)}, not a number`);
+  }
+  for (const name of (layer.popup && layer.popup.columns) || []) {
+    const f = t.faces && t.faces.schema.fields.find((x) => x.name === name);
+    if (!f) errors.push(`${where}/popup: column "${name}" not found in the face table`);
+    else if (!isAttribute(f.type)) errors.push(`${where}/popup: column "${name}" is ${typeName(f.type)}, not an attribute type (bool, integer, float32 or float64, string, date, timestamp)`);
+  }
+  return errors;
+}
+
+// Read a scene-relative Arrow table, or null when it is not a file in the repo.
+function localTable(file, ref, res, where) {
+  if (!ref || !(ref.format === "arrow-ipc-stream" || ref.format === "arrow-ipc-file")) return null;
+  const url = ref.url;
+  const local = url === undefined || /^[a-z][a-z0-9+.-]*:/i.test(url) ? null : path.resolve(path.dirname(file), url);
+  if (!local || !fs.existsSync(local)) return null;
+  res.checked.push(local);
+  try {
+    return tableFromIPC(fs.readFileSync(local));
+  } catch (e) {
+    res.errors.push(`${where}: not readable as Arrow IPC: ${e.message}`);
+    return null;
+  }
+}
+
+// Check the local mesh tables of a scene's mesh layers (0.7).
+function checkMeshes(file, scene, res) {
+  const data = scene.data || {};
+  (scene.layers || []).forEach((L, i) => {
+    if (L.kind !== "mesh" || !L.mesh) return;
+    const where = `/layers/${i}`;
+    const t = {};
+    for (const key of ["vertices", "indices", "faces"]) {
+      const id = L.mesh[key];
+      if (id === undefined) continue;
+      t[key] = localTable(file, data[id], res, `/data/${id}`);
+      if (!t[key]) {
+        res.skipped++;
+        return;
+      }
+    }
+    res.errors.push(...meshErrors(where, L, t));
+  });
+}
+
+// Check the local vector data and (0.7) mesh tables of one scene file.
 function checkScene(file) {
   const scene = JSON.parse(fs.readFileSync(file, "utf8"));
   const res = { checked: [], skipped: 0, errors: [] };
+  checkMeshes(file, scene, res);
   for (const [id, ref] of Object.entries(scene.data || {})) {
     if (!ref.geometry || !(ref.format === "arrow-ipc-stream" || ref.format === "arrow-ipc-file")) continue;
     const url = ref.url;
@@ -271,7 +362,7 @@ function suite() {
         console.log(`FAIL ${rel(file)}`);
         r.errors.forEach((e) => console.log(`       ${e}`));
       } else {
-        console.log(`ok   ${rel(file)}: ${r.checked.length} vector data files meet the contract${skipped}`);
+        console.log(`ok   ${rel(file)}: ${r.checked.length} data files meet the contract${skipped}`);
       }
     }
   }
@@ -324,4 +415,4 @@ if (require.main === module) {
   process.exit(bad ? 1 : 0);
 }
 
-module.exports = { dataErrors, sameCrs, checkScene };
+module.exports = { dataErrors, meshErrors, sameCrs, checkScene };

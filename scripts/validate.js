@@ -13,7 +13,7 @@ const Ajv2020 = require("ajv/dist/2020");
 const addFormats = require("ajv-formats");
 
 const ROOT = path.resolve(__dirname, "..");
-const VERSIONS = ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6"];
+const VERSIONS = ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7"];
 
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
@@ -48,8 +48,9 @@ function checkExtent(where, e, errors) {
 // geometry matches layer kind, extents are ordered, origin and CRS rules,
 // (0.2) tile plans are consistent with their levels and sources, (0.3)
 // rgb bands and jpeg encodings fit every level, (0.5) legends name a
-// layer and popups do not name the geometry column, and (0.6) chunk refs lie
-// on their grid and plans over chunks name stored chunks.
+// layer and popups do not name the geometry column, (0.6) chunk refs lie
+// on their grid and plans over chunks name stored chunks, and (0.7) mesh
+// layers name plain tables and have a face table when they use one.
 function semanticErrors(scene) {
   const errors = [];
   const data = scene.data || {};
@@ -128,6 +129,8 @@ function semanticErrors(scene) {
       }
     } else if (layer.kind === "tiled_raster") {
       tiledRasterErrors(where, layer, scene.version, view, needData, needTable, errors);
+    } else if (layer.kind === "mesh") {
+      meshLayerErrors(where, layer, needTable, errors);
     }
   });
   if (atLeast(scene.version, "0.5")) {
@@ -137,6 +140,24 @@ function semanticErrors(scene) {
   return errors;
 }
 
+// 0.7: a mesh layer's tables are plain Arrow tables; a face colour or a
+// popup needs the face table, and a popup shows its columns.
+function meshLayerErrors(where, layer, needTable, errors) {
+  const mesh = layer.mesh;
+  needTable(`${where}/mesh`, mesh.vertices);
+  needTable(`${where}/mesh`, mesh.indices);
+  if (mesh.faces !== undefined) needTable(`${where}/mesh`, mesh.faces);
+  if (layer.fill_by && layer.fill_by.table === "faces" && mesh.faces === undefined) {
+    errors.push(`${where}/fill_by: table faces needs mesh.faces`);
+  }
+  if (layer.popup && mesh.faces === undefined) {
+    errors.push(`${where}/popup: a mesh popup shows face table columns and needs mesh.faces`);
+  }
+}
+
+// A layer's palette: its own (raster, tiled raster) or (0.7) its fill_by's.
+const layerPalette = (layer) => layer.palette || (layer.fill_by && layer.fill_by.palette);
+
 // 0.5: a range with equal ends cannot be drawn (it divides by zero).
 function rangeErrors(scene, errors) {
   (scene.layers || []).forEach((layer, i) => {
@@ -145,6 +166,10 @@ function rangeErrors(scene, errors) {
       if (Array.isArray(r) && r[0] === r[1]) {
         errors.push(`/layers/${i}/${key}/range: ends must differ`);
       }
+    }
+    const fb = layer.fill_by && layer.fill_by.palette && layer.fill_by.palette.range;
+    if (Array.isArray(fb) && fb[0] === fb[1]) {
+      errors.push(`/layers/${i}/fill_by/palette/range: ends must differ`);
     }
   });
 }
@@ -176,9 +201,10 @@ function legendErrors(scene, errors) {
       }
     }
     if (ramp.palette && layer) {
-      if (!layer.palette) {
+      const pal = layerPalette(layer);
+      if (!pal) {
         errors.push(`${where}/ramp: layer "${lg.layer}" has no palette; key it with stops or classes`);
-      } else if (!(ramp.palette === layer.palette.name && sameJson(ramp.range, layer.palette.range))) {
+      } else if (!(ramp.palette === pal.name && sameJson(ramp.range, pal.range))) {
         errors.push(`${where}/ramp: palette and range must equal those of layer "${lg.layer}"`);
       }
     }
